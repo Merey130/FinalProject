@@ -1,0 +1,78 @@
+﻿
+@page "/"
+
+<PageTitle>StudyFlow</PageTitle>
+
+<h1>StudyFlow Dashboard</h1>
+<p>Welcome to your student management system!</p>
+
+<div class="row g-3 mt-3">
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h5>Total Tasks</h5>
+            <h2>@tasks.Count</h2>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h5>Completed</h5>
+            <h2>@tasks.Count(t => t.IsDone)</h2>
+        </div>
+    </div>
+</div>
+
+<h3 class="mt-4">My Tasks</h3>
+
+<div class="d-flex gap-2 mb-3">
+    <input class="form-control"
+           placeholder="Enter a task"
+           @bind="newTask" />
+
+    <button class="btn btn-primary"
+            @onclick="AddTask">
+        Add
+    </button>
+</div>
+
+@foreach (var task in tasks)
+{
+    <div class="card p-3 mb-2">
+        <span>@task.Title</span>
+
+        <button class="btn btn-success mt-2"
+                @onclick="() => CompleteTask(task)">
+            @(task.IsDone ? "Completed ✓" : "Complete")
+        </button>
+    </div>
+}
+
+@code {
+    private string newTask = "";
+
+    private List<StudyTask> tasks = new();
+
+    private void AddTask()
+    {
+        if (!string.IsNullOrWhiteSpace(newTask))
+        {
+            tasks.Add(new StudyTask
+            {
+                Title = newTask
+            });
+
+            newTask = "";
+        }
+    }
+
+    private void CompleteTask(StudyTask task)
+    {
+        task.IsDone = true;
+    }
+
+    private class StudyTask
+    {
+        public string Title { get; set; } = "";
+        public bool IsDone { get; set; }
+    }
+}
