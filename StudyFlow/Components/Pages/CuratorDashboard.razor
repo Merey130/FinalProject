@@ -1,0 +1,228 @@
+
+@page "/curator"
+@using StudyFlow.Models
+@inject StudyFlow.Services.TaskState TaskState
+@inject StudyFlow.Services.MockExamState ExamState
+
+<PageTitle>Curator Dashboard | StudyFlow</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="p-4 mb-4 text-white rounded-4"
+         style="background: linear-gradient(120deg, #071F42, #16477C);">
+
+        <h2 class="fw-bold">Curator Dashboard 🎓</h2>
+
+        <p class="mb-0">
+            Monitor learning progress and support students.
+        </p>
+    </div>
+
+    <div class="alert alert-info">
+        Demo mode: student accounts are not connected yet.
+        The statistics below use this browser session.
+    </div>
+
+    <!-- Statistics -->
+    <div class="row g-3 mb-4">
+
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card p-3 shadow-sm h-100">
+                <p class="text-muted">Connected Students</p>
+                <h2>0</h2>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card p-3 shadow-sm h-100">
+                <p class="text-muted">Mock Exams</p>
+                <h2>@ExamState.Results.Count</h2>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card p-3 shadow-sm h-100">
+                <p class="text-muted">Pending Tasks</p>
+                <h2>@PendingTasks</h2>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card p-3 shadow-sm h-100">
+                <p class="text-muted">Overdue Tasks</p>
+                <h2 class="text-danger">@OverdueTasks</h2>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Student Monitoring -->
+    <div class="card p-4 shadow-sm mb-4">
+
+        <h4>Student Monitoring</h4>
+
+        <p class="text-muted">
+            Registered students will appear here
+            after Backend integration.
+        </p>
+
+        <div class="alert alert-light border">
+            No student accounts connected yet.
+        </div>
+
+    </div>
+
+    <!-- Assignment Overview -->
+    <div class="card p-4 shadow-sm mb-4">
+
+        <h4>Assignment Overview</h4>
+
+        <p class="text-muted">
+            Current session preview
+        </p>
+
+        <div class="row g-3">
+
+            <div class="col-md-6">
+                <div class="p-3 rounded-3 bg-light">
+                    <p>Completed Tasks</p>
+                    <h3>@CompletedTasks</h3>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="p-3 rounded-3 bg-light">
+                    <p>Completion Rate</p>
+                    <h3>@CompletionRate%</h3>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="progress mt-4" style="height: 15px;">
+            <div class="progress-bar"
+                 style="width: @(CompletionRate)%; background-color: #16477C;">
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Exam Results -->
+    <div class="card p-4 shadow-sm mb-4">
+
+        <h4>Recent Mock Exam Results</h4>
+
+        <p class="text-muted">
+            Current session preview
+        </p>
+
+        @if (RecentExams.Count == 0)
+        {
+            <div class="alert alert-light border">
+                No exam results available yet.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+
+                <table class="table table-striped align-middle">
+
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>History</th>
+                            <th>Reading</th>
+                            <th>Math Literacy</th>
+                            <th>Mathematics</th>
+                            <th>Informatics</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var exam in RecentExams)
+                        {
+                            <tr @key="exam.Id">
+                                <td>
+                                    @exam.Date.ToString("dd MMM yyyy")
+                                </td>
+                                <td>@exam.History / 20</td>
+                                <td>@exam.Reading / 10</td>
+                                <td>@exam.Literacy / 10</td>
+                                <td>@exam.Math / 50</td>
+                                <td>@exam.Informatics / 50</td>
+                                <td>
+                                    <strong>@exam.Total / 140</strong>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+
+                </table>
+            </div>
+        }
+
+    </div>
+
+    <!-- Recommendations -->
+    <div class="card p-4 shadow-sm mb-4">
+
+        <h4>Academic Support Recommendations</h4>
+
+        @if (OverdueTasks > 0)
+        {
+            <div class="alert alert-warning">
+                Some assignments are overdue.
+                Review the deadlines and consider
+                providing additional support.
+            </div>
+        }
+
+        @if (ExamState.Results.Count > 0)
+        {
+            <div class="alert alert-primary">
+                Mock exam results are available.
+                Review subject scores to identify
+                topics for revision.
+            </div>
+        }
+
+        @if (OverdueTasks == 0 &&
+             ExamState.Results.Count == 0)
+        {
+            <div class="alert alert-light border">
+                Recommendations will appear
+                when learning data is available.
+            </div>
+        }
+
+    </div>
+
+</div>
+
+@code {
+
+    private int CompletedTasks =>
+        TaskState.Tasks.Count(t => t.IsDone);
+
+    private int PendingTasks =>
+        TaskState.Tasks.Count(t => !t.IsDone);
+
+    private int OverdueTasks =>
+        TaskState.Tasks.Count(t =>
+            !t.IsDone &&
+            t.Deadline.Date < DateTime.Today);
+
+    private int CompletionRate =>
+        TaskState.Tasks.Count == 0
+            ? 0
+            : CompletedTasks * 100 / TaskState.Tasks.Count;
+
+    private List<MockExam> RecentExams =>
+        ExamState.Results
+            .OrderByDescending(r => r.Date)
+            .ThenByDescending(r => r.Id)
+            .Take(5)
+            .ToList();
+}
