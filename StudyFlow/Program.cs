@@ -1,6 +1,7 @@
 using StudyFlow.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddScoped<StudyFlow.Services.TaskState>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

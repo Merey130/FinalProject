@@ -1,11 +1,12 @@
 ﻿
 @page "/"
+@using StudyFlow.Models
+@inject StudyFlow.Services.TaskState TaskState
 
-<PageTitle>StudyFlow | Student Dashboard</PageTitle>
+<PageTitle>StudyFlow | Dashboard</PageTitle>
 
 <div class="container-fluid py-4">
 
-    <!-- Welcome banner -->
     <div class="p-4 mb-4 text-white rounded-4"
          style="background: linear-gradient(120deg, #071F42, #16477C);">
 
@@ -15,25 +16,24 @@
         </p>
     </div>
 
-    <!-- Statistics -->
     <div class="row g-3 mb-4">
 
         <div class="col-12 col-md-4">
-            <div class="card p-3 shadow-sm h-100">
+            <div class="card p-3 shadow-sm">
                 <p class="text-muted">Total Tasks</p>
-                <h2>@tasks.Count</h2>
+                <h2>@TaskState.Tasks.Count</h2>
             </div>
         </div>
 
         <div class="col-12 col-md-4">
-            <div class="card p-3 shadow-sm h-100">
+            <div class="card p-3 shadow-sm">
                 <p class="text-muted">Completed</p>
                 <h2>@CompletedCount</h2>
             </div>
         </div>
 
         <div class="col-12 col-md-4">
-            <div class="card p-3 shadow-sm h-100">
+            <div class="card p-3 shadow-sm">
                 <p class="text-muted">Upcoming</p>
                 <h2>@UpcomingCount</h2>
             </div>
@@ -41,12 +41,12 @@
 
     </div>
 
-    <!-- Progress -->
     <div class="card p-4 shadow-sm mb-4">
+
         <h4>Learning Progress</h4>
 
         <p class="text-muted">
-            @CompletedCount of @tasks.Count tasks completed
+            @CompletedCount of @TaskState.Tasks.Count tasks completed
         </p>
 
         <div class="progress" style="height: 14px;">
@@ -56,9 +56,9 @@
         </div>
 
         <p class="mt-2 fw-bold">@Progress%</p>
+
     </div>
 
-    <!-- Add Assignment -->
     <div class="card p-4 shadow-sm mb-4">
 
         <h4>Add New Assignment</h4>
@@ -93,37 +93,36 @@
             </div>
 
         </div>
+
     </div>
 
-    <!-- Assignment List -->
     <h4 class="mb-3">My Assignments</h4>
 
-    @if (tasks.Count == 0)
+    @if (TaskState.Tasks.Count == 0)
     {
         <div class="alert alert-info">
             No assignments yet. Add your first task!
         </div>
     }
 
-    @foreach (var task in tasks.OrderBy(t => t.Deadline))
+    @foreach (var task in TaskState.Tasks.OrderBy(t => t.Deadline))
     {
-        <div class="card p-3 shadow-sm mb-3">
+        <div class="card p-3 shadow-sm mb-3" @key="task.Id">
 
-            <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
 
                 <input type="checkbox"
+                       class="form-check-input"
                        checked="@task.IsDone"
-                       @onchange="() => ToggleTask(task)" />
+                       @onchange="() => TaskState.ToggleTask(task.Id)" />
 
                 <div class="flex-grow-1">
-
-                    <h5 class="mb-1">@task.Title</h5>
+                    <h5>@task.Title</h5>
 
                     <small class="text-muted">
-                        @task.Subject
-                        | Deadline: @task.Deadline.ToString("dd MMM yyyy")
+                        @task.Subject |
+                        Deadline: @task.Deadline.ToString("dd MMM yyyy")
                     </small>
-
                 </div>
 
                 @if (task.IsDone)
@@ -140,7 +139,7 @@
                 }
 
                 <button class="btn btn-outline-danger btn-sm"
-                        @onclick="() => RemoveTask(task)">
+                        @onclick="() => TaskState.DeleteTask(task.Id)">
                     Delete
                 </button>
 
@@ -155,51 +154,26 @@
     private string newSubject = "Informatics";
     private DateTime newDeadline = DateTime.Today.AddDays(2);
 
-    private List<StudyTask> tasks = new();
-
     private int CompletedCount =>
-        tasks.Count(t => t.IsDone);
+        TaskState.Tasks.Count(t => t.IsDone);
 
     private int UpcomingCount =>
-        tasks.Count(t => !t.IsDone &&
+        TaskState.Tasks.Count(t =>
+            !t.IsDone &&
             t.Deadline.Date >= DateTime.Today &&
             t.Deadline.Date <= DateTime.Today.AddDays(3));
 
     private int Progress =>
-        tasks.Count == 0
+        TaskState.Tasks.Count == 0
             ? 0
-            : CompletedCount * 100 / tasks.Count;
+            : CompletedCount * 100 / TaskState.Tasks.Count;
 
     private void AddTask()
     {
         if (string.IsNullOrWhiteSpace(newTitle))
             return;
 
-        tasks.Add(new StudyTask
-        {
-            Title = newTitle.Trim(),
-            Subject = newSubject,
-            Deadline = newDeadline
-        });
-
+        TaskState.AddTask(newTitle, newSubject, newDeadline);
         newTitle = "";
-    }
-
-    private void ToggleTask(StudyTask task)
-    {
-        task.IsDone = !task.IsDone;
-    }
-
-    private void RemoveTask(StudyTask task)
-    {
-        tasks.Remove(task);
-    }
-
-    private class StudyTask
-    {
-        public string Title { get; set; } = "";
-        public string Subject { get; set; } = "";
-        public DateTime Deadline { get; set; }
-        public bool IsDone { get; set; }
     }
 }

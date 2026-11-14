@@ -1,0 +1,156 @@
+
+@page "/tasks"
+@using StudyFlow.Models
+@inject StudyFlow.Services.TaskState TaskState
+
+<PageTitle>My Tasks | StudyFlow</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="p-4 mb-4 text-white rounded-4"
+         style="background: linear-gradient(120deg, #071F42, #16477C);">
+
+        <h2 class="fw-bold">My Tasks 📚</h2>
+        <p class="mb-0">
+            Manage your assignments and track your progress.
+        </p>
+    </div>
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+                <p class="text-muted">All Tasks</p>
+                <h2>@TaskState.Tasks.Count</h2>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+                <p class="text-muted">Completed</p>
+                <h2>@TaskState.Tasks.Count(t => t.IsDone)</h2>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+                <p class="text-muted">Pending</p>
+                <h2>@TaskState.Tasks.Count(t => !t.IsDone)</h2>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="card p-4 shadow-sm mb-4">
+
+        <h4>Search & Filter</h4>
+
+        <div class="row g-3 mt-1">
+
+            <div class="col-md-4">
+                <input class="form-control"
+                       placeholder="Search assignment..."
+                       @bind="searchText"
+                       @bind:event="oninput" />
+            </div>
+
+            <div class="col-md-4">
+                <select class="form-select" @bind="selectedSubject">
+                    <option value="All">All Subjects</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Informatics">Informatics</option>
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <select class="form-select" @bind="selectedStatus">
+                    <option value="All">All Statuses</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Overdue">Overdue</option>
+                </select>
+            </div>
+
+        </div>
+    </div>
+
+    <h4 class="mb-3">Assignments</h4>
+
+    @if (!FilteredTasks.Any())
+    {
+        <div class="alert alert-info">
+            No assignments found.
+        </div>
+    }
+
+    @foreach (var task in FilteredTasks)
+    {
+        <div class="card p-3 mb-3 shadow-sm" @key="task.Id">
+
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+
+                <input type="checkbox"
+                       class="form-check-input"
+                       checked="@task.IsDone"
+                       @onchange="() => TaskState.ToggleTask(task.Id)" />
+
+                <div class="flex-grow-1">
+
+                    <h5 class="mb-1">@task.Title</h5>
+
+                    <small class="text-muted">
+                        @task.Subject |
+                        Deadline: @task.Deadline.ToString("dd MMM yyyy")
+                    </small>
+
+                </div>
+
+                @if (task.IsDone)
+                {
+                    <span class="badge bg-success">Completed</span>
+                }
+                else if (task.Deadline.Date < DateTime.Today)
+                {
+                    <span class="badge bg-danger">Overdue</span>
+                }
+                else
+                {
+                    <span class="badge bg-primary">Pending</span>
+                }
+
+                <button class="btn btn-outline-danger btn-sm"
+                        @onclick="() => TaskState.DeleteTask(task.Id)">
+                    Delete
+                </button>
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private string searchText = "";
+    private string selectedSubject = "All";
+    private string selectedStatus = "All";
+
+    private IEnumerable<StudyTask> FilteredTasks =>
+        TaskState.Tasks.Where(t =>
+
+            (string.IsNullOrWhiteSpace(searchText) ||
+             t.Title.Contains(
+                 searchText,
+                 StringComparison.OrdinalIgnoreCase)) &&
+
+            (selectedSubject == "All" ||
+             t.Subject == selectedSubject) &&
+
+            (selectedStatus == "All" ||
+             (selectedStatus == "Completed" && t.IsDone) ||
+             (selectedStatus == "Pending" && !t.IsDone) ||
+             (selectedStatus == "Overdue" &&
+              !t.IsDone &&
+              t.Deadline.Date < DateTime.Today))
+
+        ).OrderBy(t => t.Deadline);
+}
