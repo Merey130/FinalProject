@@ -1,48 +1,29 @@
-
 using StudyFlow.Models;
 
 namespace StudyFlow.Services;
 
-public class TaskState
+// Existing .razor files can continue to call TaskState exactly as before.
+// Unlike the previous in-memory version, changes are now saved by StudyDataStore.
+public sealed class TaskState
 {
-    private readonly List<StudyTask> _tasks = new();
+    private readonly StudyDataStore _store;
 
-    private int _nextId = 1;
+    public TaskState(StudyDataStore store)
+    {
+        _store = store;
+    }
 
-    public IReadOnlyList<StudyTask> Tasks => _tasks;
+    public IReadOnlyList<StudyTask> Tasks => _store.GetTasks();
 
     public void AddTask(string title, string subject, DateTime deadline)
     {
         if (string.IsNullOrWhiteSpace(title))
             return;
 
-        _tasks.Add(new StudyTask
-        {
-            Id = _nextId++,
-            Title = title.Trim(),
-            Subject = subject,
-            Deadline = deadline,
-            IsDone = false
-        });
+        _store.AddTask(title, subject, deadline);
     }
 
-    public void ToggleTask(int id)
-    {
-        var task = _tasks.Find(t => t.Id == id);
+    public void ToggleTask(int id) => _store.ToggleTask(id);
 
-        if (task != null)
-        {
-            task.IsDone = !task.IsDone;
-        }
-    }
-
-    public void DeleteTask(int id)
-    {
-        var task = _tasks.Find(t => t.Id == id);
-
-        if (task != null)
-        {
-            _tasks.Remove(task);
-        }
-    }
+    public void DeleteTask(int id) => _store.DeleteTask(id);
 }
