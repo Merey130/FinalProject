@@ -1,0 +1,99 @@
+@page "/"
+@page "/login"
+@layout AuthLayout
+
+<PageTitle>Sign In | StudyFlow</PageTitle>
+
+<div class="login-page">
+
+    <div class="mobile-brand">
+        <span class="mobile-brand-icon">S</span>
+        <span>StudyFlow</span>
+    </div>
+
+    <div class="login-header">
+        <span class="login-eyebrow">WELCOME BACK</span>
+        <h1>Sign in</h1>
+        <p>
+            Enter your details to access your workspace.
+        </p>
+    </div>
+
+    <div class="login-form">
+
+        <div class="login-field">
+            <label for="loginEmail">Email address</label>
+
+            <input id="loginEmail"
+                   type="email"
+                   placeholder="name@example.com"
+                   autocomplete="off" />
+        </div>
+
+        <div class="login-field">
+            <label for="loginPassword">Password</label>
+
+            <div class="password-wrapper">
+                <input id="loginPassword"
+                       type="@(showPassword ? "text" : "password")"
+                       placeholder="Enter your password"
+                       autocomplete="off" />
+
+                <button type="button"
+                        class="password-toggle"
+                        aria-label="@(showPassword ? "Hide password" : "Show password")"
+                        @onclick="TogglePassword">
+                    @(showPassword ? "Hide" : "Show")
+                </button>
+            </div>
+        </div>
+
+        <button type="button"
+                class="sign-in-button"
+                @onclick="ShowPreviewMessage">
+            Sign in
+        </button>
+
+        @if (showPreviewNotice)
+        {
+            <div class="login-notice" role="status">
+                Authentication is not connected yet.
+                This is a design preview.
+            </div>
+        }
+
+        <div class="login-footer">
+         <p>
+        New to StudyFlow?
+        <a href="/register">Create an account</a>
+         </p>
+        </div>
+
+        <div class="login-divider"></div>
+
+       <a class="back-link" href="/dashboard">
+            Back to Dashboard
+        </a>
+
+    </div>
+
+    <div class="login-bottom">
+        StudyFlow · Student &amp; Curator Platform
+    </div>
+
+</div>
+
+@code {
+    private bool showPassword = false;
+    private bool showPreviewNotice = false;
+
+    private void TogglePassword()
+    {
+        showPassword = !showPassword;
+    }
+
+    private void ShowPreviewMessage()
+    {
+        showPreviewNotice = true;
+    }
+}
