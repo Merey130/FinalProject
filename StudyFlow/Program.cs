@@ -1,28 +1,47 @@
 
+using Npgsql;
 using StudyFlow.Components;
 using StudyFlow.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Backend: shared data storage
-builder.Services.AddSingleton<StudyDataStore>();
+// Demo-only until authentication is implemented
+if (!builder.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "StudyFlow is development-only until authentication is implemented.");
+}
 
-// Frontend: state management
+// Existing frontend storage
+builder.Services.AddSingleton<StudyDataStore>();
 builder.Services.AddScoped<TaskState>();
 builder.Services.AddScoped<MockExamState>();
 
-// Blazor
+// New Supabase PostgreSQL backend
+builder.Services.AddSingleton<NpgsqlDataSource>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+
+    var connectionString =
+        config.GetConnectionString("Supabase");
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException(
+            "Missing Supabase connection string.");
+    }
+
+    return new NpgsqlDataSourceBuilder(connectionString)
+        .Build();
+});
+
+builder.Services.AddScoped<StudyRepository>();
+
+// Blazor components
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var app = builder.Build();
-
-// Error handling
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
-}
 
 app.UseStatusCodePagesWithReExecute(
     "/not-found",
@@ -36,6 +55,7 @@ app.MapStudyFlowApi();
 
 // Frontend
 app.MapStaticAssets();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
