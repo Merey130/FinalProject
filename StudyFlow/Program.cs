@@ -11,11 +11,25 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     .AddCookie(options =>
     {
         options.LoginPath = "/login";
+        options.AccessDeniedPath = "/access-denied";
         options.Cookie.Name = "StudyFlow.Session";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         options.ExpireTimeSpan = TimeSpan.FromDays(7);
+        options.Events.OnRedirectToAccessDenied = context =>
+{
+    if (context.Request.Path.StartsWithSegments("/api"))
+    {
+        context.Response.StatusCode = 403;
+    }
+    else
+    {
+        context.Response.Redirect(context.RedirectUri);
+    }
+
+    return Task.CompletedTask;
+};
         options.Events.OnValidatePrincipal = async context =>
         {
             var store = context.HttpContext.RequestServices.GetRequiredService<SessionStore>();
@@ -38,6 +52,8 @@ builder.Services.AddSingleton<SupabaseAuth>();
 builder.Services.AddSingleton<SupabaseDatabase>();
 builder.Services.AddScoped<CurrentAccessToken>();
 builder.Services.AddScoped<StudyRepository>();
+builder.Services.AddScoped<StudyFlowRoleService>();
+builder.Services.AddScoped<StudyFlowCuratorRepository>();
 builder.Services.AddScoped<TaskState>();
 builder.Services.AddScoped<MockExamState>();
 
@@ -51,6 +67,7 @@ app.MapGet("/api/health", (SupabaseOptions o) =>
     Results.Ok(new { status = "ok", app = "StudyFlow", supabaseConfigured = o.Configured }));
 app.MapStudyFlowAuth();
 app.MapStudyFlowApi();
+app.MapStudyFlowCuratorApi();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();
