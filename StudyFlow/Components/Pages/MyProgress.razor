@@ -1,0 +1,438 @@
+
+@page "/progress"
+@attribute [Authorize]
+@using StudyFlow.Models
+@inject StudyFlow.Services.MockExamState ExamState
+
+<PageTitle>My Progress | StudyFlow</PageTitle>
+
+<div class="progress-page">
+
+    <header class="page-heading">
+        <h1>My Progress</h1>
+        <p>Track your ҰБТ mock exam results and learning progress.</p>
+    </header>
+
+    <!-- Statistics -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <span>Latest Score</span>
+            <h2>@(Latest?.Total ?? 0) <small>/ 140</small></h2>
+            <p>Most recent mock exam</p>
+        </div>
+
+        <div class="summary-card">
+            <span>Best Score</span>
+            <h2>@BestScore <small>/ 140</small></h2>
+            <p>Your highest result</p>
+        </div>
+
+        <div class="summary-card">
+            <span>Score Change</span>
+            <h2>@ScoreChangeText</h2>
+            <p>Compared to previous exam</p>
+        </div>
+
+        <div class="summary-card">
+            <span>Mock Exams</span>
+            <h2>@Results.Count</h2>
+            <p>Total recorded exams</p>
+        </div>
+    </div>
+
+    <!-- Add New Exam -->
+    <section class="progress-panel">
+
+        <div class="panel-heading">
+            <div>
+                <h2>Add Mock Exam Result</h2>
+                <p>Enter your practice exam scores.</p>
+            </div>
+        </div>
+
+        <p class="demo-note">
+            Demo mode: use test scores only.
+        </p>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="form-error" role="alert">
+                @errorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="form-success" role="status">
+                @successMessage
+            </div>
+        }
+
+        <div class="exam-form">
+
+            <div class="field">
+                <label for="examDate">Test Date</label>
+                <input id="examDate" type="date"
+                       @bind="testDate" />
+            </div>
+
+            <div class="field">
+                <label for="examHistory">History of Kazakhstan / 20</label>
+                <input id="examHistory" type="number"
+                       min="0" max="20"
+                       @bind="history" />
+            </div>
+
+            <div class="field">
+                <label for="examReading">Reading Literacy / 10</label>
+                <input id="examReading" type="number"
+                       min="0" max="10"
+                       @bind="reading" />
+            </div>
+
+            <div class="field">
+                <label for="examLiteracy">Mathematical Literacy / 10</label>
+                <input id="examLiteracy" type="number"
+                       min="0" max="10"
+                       @bind="literacy" />
+            </div>
+
+            <div class="field">
+                <label for="examMath">Mathematics / 50</label>
+                <input id="examMath" type="number"
+                       min="0" max="50"
+                       @bind="math" />
+            </div>
+
+            <div class="field">
+                <label for="examInformatics">Informatics / 50</label>
+                <input id="examInformatics" type="number"
+                       min="0" max="50"
+                       @bind="informatics" />
+            </div>
+
+        </div>
+
+        <button class="save-button"
+                type="button"
+                @onclick="AddResult">
+            Save Result
+        </button>
+
+    </section>
+
+    @if (Results.Count == 0)
+    {
+        <section class="progress-panel empty-panel">
+            <h2>No exam results yet</h2>
+            <p>Add your first mock exam result to see analytics.</p>
+        </section>
+    }
+    else
+    {
+        <!-- Score Chart -->
+        <section class="progress-panel">
+
+            <div class="panel-heading chart-heading">
+                <div>
+                    <h2>Score Progress</h2>
+                    <p>Compare your performance across exams.</p>
+                </div>
+
+                <div class="field subject-picker">
+                    <label for="chartSubject">Subject</label>
+                    <select id="chartSubject"
+                            @bind="selectedSubject">
+                        <option value="Total">Total Score</option>
+                        <option value="History">History of Kazakhstan</option>
+                        <option value="Reading">Reading Literacy</option>
+                        <option value="Literacy">Mathematical Literacy</option>
+                        <option value="Math">Mathematics</option>
+                        <option value="Informatics">Informatics</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <svg class="trend-chart"
+                     viewBox="0 0 720 230"
+                     role="img"
+                     aria-label="Mock exam score progress">
+
+                    <line x1="60" y1="40" x2="690" y2="40"
+                          class="chart-gridline" />
+                    <line x1="60" y1="115" x2="690" y2="115"
+                          class="chart-gridline" />
+                    <line x1="60" y1="190" x2="690" y2="190"
+                          class="chart-gridline" />
+
+                    <text x="12" y="44" class="chart-axis">
+                        @SelectedMax
+                    </text>
+                    <text x="12" y="119" class="chart-axis">
+                        @(SelectedMax / 2)
+                    </text>
+                    <text x="12" y="194" class="chart-axis">0</text>
+
+                    <polyline points="@ChartLine"
+                              class="chart-line" />
+
+                    @foreach (var point in ChartPoints)
+                    {
+                        <circle cx="@point.X"
+                                cy="@point.Y"
+                                r="6"
+                                class="chart-dot">
+                            <title>@point.Date: @point.Score / @SelectedMax</title>
+                        </circle>
+                    }
+
+                </svg>
+
+                <div class="chart-dates">
+                    <span>@OrderedResults.First().Date.ToString("dd MMM yyyy")</span>
+                    <span>@OrderedResults.Last().Date.ToString("dd MMM yyyy")</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Latest Subject Results -->
+        <section class="progress-panel">
+
+            <div class="panel-heading">
+                <div>
+                    <h2>Latest Subject Results</h2>
+                    <p>Performance in your most recent test.</p>
+                </div>
+            </div>
+
+            <div class="subjects-list">
+                @foreach (var subject in LatestSubjects)
+                {
+                    <div class="subject-item">
+                        <div class="subject-info">
+                            <span>@subject.Name</span>
+                            <strong>@subject.Score / @subject.Max</strong>
+                        </div>
+
+                        <div class="subject-track">
+                            <div class="subject-fill"
+                                 style="width: @(subject.Score * 100.0 / subject.Max)%">
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+        </section>
+
+        <!-- Exam History -->
+        <section class="progress-panel">
+
+            <div class="panel-heading">
+                <div>
+                    <h2>Mock Exam History</h2>
+                    <p>All recorded practice results.</p>
+                </div>
+            </div>
+
+            <div class="history-scroll">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>History</th>
+                            <th>Reading</th>
+                            <th>Literacy</th>
+                            <th>Math</th>
+                            <th>Informatics</th>
+                            <th>Total</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var exam in OrderedResults.AsEnumerable().Reverse())
+                        {
+                            <tr @key="exam.Id">
+                                <td>@exam.Date.ToString("dd MMM yyyy")</td>
+                                <td>@exam.History</td>
+                                <td>@exam.Reading</td>
+                                <td>@exam.Literacy</td>
+                                <td>@exam.Math</td>
+                                <td>@exam.Informatics</td>
+                                <td>
+                                    <strong>@exam.Total / 140</strong>
+                                </td>
+                                <td>
+                                    <button type="button"
+                                            class="delete-button"
+                                            @onclick="() => DeleteResult(exam.Id)">
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+        </section>
+    }
+
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try { await ExamState.LoadAsync(); }
+        catch { errorMessage = "Could not load exam results from Supabase."; }
+    }
+
+    private DateTime testDate = DateTime.Today;
+
+    private int history;
+    private int reading;
+    private int literacy;
+    private int math;
+    private int informatics;
+
+    private string errorMessage = "";
+    private string successMessage = "";
+    private string selectedSubject = "Total";
+
+    private IReadOnlyList<MockExam> Results =>
+        ExamState.Results;
+
+    private List<MockExam> OrderedResults =>
+        Results.OrderBy(r => r.Date)
+               .ThenBy(r => r.Id)
+               .ToList();
+
+    private MockExam? Latest =>
+        OrderedResults.LastOrDefault();
+
+    private int BestScore =>
+        Results.Count == 0 ? 0 : Results.Max(r => r.Total);
+
+    private int ScoreChange =>
+        Results.Count < 2
+            ? 0
+            : OrderedResults[^1].Total - OrderedResults[^2].Total;
+
+    private string ScoreChangeText =>
+        Results.Count < 2
+            ? "—"
+            : ScoreChange.ToString("+#;-#;0");
+
+    private IEnumerable<(string Name, int Score, int Max)> LatestSubjects
+    {
+        get
+        {
+            var exam = Latest;
+
+            if (exam == null)
+                return Array.Empty<(string Name, int Score, int Max)>();
+
+            return new (string Name, int Score, int Max)[]
+            {
+                ("History of Kazakhstan", exam.History, 20),
+                ("Reading Literacy", exam.Reading, 10),
+                ("Mathematical Literacy", exam.Literacy, 10),
+                ("Mathematics", exam.Math, 50),
+                ("Informatics", exam.Informatics, 50)
+            };
+        }
+    }
+
+    private int SelectedMax => selectedSubject switch
+    {
+        "History" => 20,
+        "Reading" => 10,
+        "Literacy" => 10,
+        "Math" => 50,
+        "Informatics" => 50,
+        _ => 140
+    };
+
+    private int GetScore(MockExam exam) => selectedSubject switch
+    {
+        "History" => exam.History,
+        "Reading" => exam.Reading,
+        "Literacy" => exam.Literacy,
+        "Math" => exam.Math,
+        "Informatics" => exam.Informatics,
+        _ => exam.Total
+    };
+
+    private List<(int X, int Y, int Score, string Date)> ChartPoints
+    {
+        get
+        {
+            var exams = OrderedResults;
+
+            return exams.Select((exam, index) =>
+            (
+                X: exams.Count == 1
+                    ? 375
+                    : 60 + index * 620 / (exams.Count - 1),
+
+                Y: 190 - (int)Math.Round(
+                    GetScore(exam) * 150.0 / SelectedMax),
+
+                Score: GetScore(exam),
+
+                Date: exam.Date.ToString("dd MMM yyyy")
+            )).ToList();
+        }
+    }
+
+    private string ChartLine =>
+        string.Join(" ", ChartPoints.Select(p => $"{p.X},{p.Y}"));
+
+    private async Task AddResult()
+    {
+        errorMessage = "";
+        successMessage = "";
+
+        if (testDate == default || testDate.Date > DateTime.Today)
+        {
+            errorMessage = "Please select a valid test date.";
+            return;
+        }
+
+        if (history < 0 || history > 20 ||
+            reading < 0 || reading > 10 ||
+            literacy < 0 || literacy > 10 ||
+            math < 0 || math > 50 ||
+            informatics < 0 || informatics > 50)
+        {
+            errorMessage = "One or more subject scores are invalid.";
+            return;
+        }
+
+        await ExamState.AddResultAsync(new MockExam
+        {
+            Date = testDate.Date,
+            History = history,
+            Reading = reading,
+            Literacy = literacy,
+            Math = math,
+            Informatics = informatics
+        });
+
+        history = 0;
+        reading = 0;
+        literacy = 0;
+        math = 0;
+        informatics = 0;
+
+        successMessage = "Mock exam result saved.";
+    }
+
+    private async Task DeleteResult(int id)
+    {
+        await ExamState.DeleteResultAsync(id);
+        successMessage = "";
+    }
+}

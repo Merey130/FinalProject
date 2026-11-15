@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
 <div class="page">
     <div class="sidebar">
@@ -7,7 +7,24 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            @* StudyFlow.AccountBadge: signed-in user and sign out *@
+            <AuthorizeView>
+                <Authorized Context="currentAccount">
+                    <div style="display:flex;align-items:center;gap:12px;margin-left:auto;flex-wrap:wrap;">
+                        <span aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#15457F;color:white;font-weight:700;">S</span>
+                        <span style="font-size:13px;color:inherit;">
+                            @currentAccount.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                        </span>
+                        <form method="post" action="/auth/logout" style="margin:0;">
+                            <AntiforgeryToken />
+                            <button type="submit" style="border:1px solid #94a3b8;border-radius:8px;background:transparent;padding:6px 12px;color:inherit;cursor:pointer;">Log out</button>
+                        </form>
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login">Sign in</a>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
 
         <article class="content px-4">
@@ -21,3 +38,4 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+

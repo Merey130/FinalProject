@@ -1,0 +1,409 @@
+
+@page "/curator"
+@attribute [Authorize(Policy = "CuratorOnly")]
+@using StudyFlow.Models
+@using System.Text.Json
+@using System.Security.Claims
+@inject StudyFlow.Services.CurrentAccessToken CurrentToken
+@inject StudyFlow.Services.StudyFlowRoleService RoleService
+@inject StudyFlow.Services.StudyFlowCuratorRepository CuratorRepo
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Curator Dashboard | StudyFlow</PageTitle>
+
+<div class="curator-page">
+
+    <header class="curator-header">
+        <div>
+            <h1>Curator Dashboard</h1>
+            <p>Monitor learning progress and support students.</p>
+        </div>
+        <span class="curator-label">Curator Workspace</span>
+    </header>
+
+    <div class="demo-notice">
+        @if (Loading) { <span>Loading assigned students...</span> }
+        else if (!string.IsNullOrEmpty(Error)) { <span role="alert">@Error</span> }
+        else { <span>Data for assigned students from Supabase.</span> }
+    </div>
+
+    <!-- Statistics -->
+    <div class="curator-stats">
+
+        <div class="curator-stat">
+            <span>Connected Students</span>
+            <h2>@Students.Count</h2>
+            <p>Assigned students</p>
+        </div>
+
+        <div class="curator-stat">
+            <span>Mock Exams</span>
+            <h2>@StudentExams.Count</h2>
+            <p>Recorded practice tests</p>
+        </div>
+
+        <div class="curator-stat">
+            <span>Pending Tasks</span>
+            <h2>@PendingTasks</h2>
+            <p>Incomplete assignments</p>
+        </div>
+
+        <div class="curator-stat">
+            <span>Overdue Tasks</span>
+            <h2>@OverdueTasks</h2>
+            <p>Past their deadline</p>
+        </div>
+
+    </div>
+
+    <div class="curator-grid">
+
+        <!-- Assignment Overview -->
+        <section class="curator-card">
+
+            <div class="card-heading">
+                <h3>Assignment Overview</h3>
+                <p>Assigned student assignments</p>
+            </div>
+
+            <div class="overview-grid">
+
+                <div class="overview-item">
+                    <span>Completed Tasks</span>
+                    <strong>@CompletedTasks</strong>
+                </div>
+
+                <div class="overview-item">
+                    <span>Total Tasks</span>
+                    <strong>@StudentTasks.Count</strong>
+                </div>
+
+            </div>
+
+            <div class="completion-heading">
+                <span>Completion Rate</span>
+                <strong>@CompletionRate%</strong>
+            </div>
+
+            <div class="completion-track">
+                <div class="completion-fill"
+                     style="width: @(CompletionRate)%">
+                </div>
+            </div>
+
+            <p class="completion-caption">
+                @CompletedTasks of @StudentTasks.Count
+                assignments completed
+            </p>
+
+        </section>
+
+        <!-- Latest Mock Exam -->
+        <section class="curator-card">
+
+            <div class="card-heading">
+                <h3>Latest Mock Exam</h3>
+                <p>Subject performance overview</p>
+            </div>
+
+            @if (LatestExam == null)
+            {
+                <div class="curator-empty">
+                    <h4>No results available</h4>
+                    <p>Practice exam results will appear here.</p>
+                </div>
+            }
+            else
+            {
+                <div class="latest-score">
+                    <strong>@LatestExam.Total</strong>
+                    <span>/ 140 points</span>
+                </div>
+
+                <div class="subject-results">
+                    @foreach (var subject in LatestSubjects)
+                    {
+                        <div class="subject-result">
+
+                            <div class="subject-info">
+                                <span>@subject.Name</span>
+                                <strong>
+                                    @subject.Score / @subject.Max
+                                </strong>
+                            </div>
+
+                            <div class="subject-track">
+                                <div class="subject-fill"
+                                     style="width: @(subject.Score * 100.0 / subject.Max)%">
+                                </div>
+                            </div>
+
+                        </div>
+                    }
+                </div>
+            }
+
+        </section>
+
+    </div>
+
+    <!-- Student Monitoring -->
+    <section class="curator-card">
+        <div class="card-heading">
+            <h3>Student Monitoring</h3>
+            <p>Choose an assigned student to view their progress</p>
+        </div>
+        @if (Students.Count == 0)
+        {
+            <div class="student-placeholder">
+                <h4>No students assigned</h4>
+                <p>Ask an administrator to assign a student in Supabase.</p>
+            </div>
+        }
+        else
+        {
+            <label for="curatorStudent">Assigned student</label>
+            <select id="curatorStudent" value="@SelectedStudentId" @onchange="SelectStudentAsync"
+                    style="padding:12px; margin:12px 0; border:1px solid #dce7f4; border-radius:8px; min-width:220px; max-width:100%;">
+                @foreach (var student in Students)
+                {
+                    <option value="@(Text(student, "id"))">@Text(student, "display_name")</option>
+                }
+            </select>
+            <p>Showing tasks and UNT results of the selected student.</p>
+        }
+    </section>
+
+    <!-- Recent Mock Exams -->
+    <section class="curator-card">
+
+        <div class="card-heading">
+            <h3>Recent Mock Exam Results</h3>
+            <p>Five most recent practice tests</p>
+        </div>
+
+        @if (RecentExams.Count == 0)
+        {
+            <div class="curator-empty">
+                <h4>No mock exams yet</h4>
+                <p>There are no recorded results to display.</p>
+            </div>
+        }
+        else
+        {
+            <div class="curator-table-scroll">
+
+                <table class="curator-table">
+
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>History</th>
+                            <th>Reading</th>
+                            <th>Math Literacy</th>
+                            <th>Mathematics</th>
+                            <th>Informatics</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var exam in RecentExams)
+                        {
+                            <tr @key="exam.Id">
+                                <td>
+                                    @exam.Date.ToString("dd MMM yyyy")
+                                </td>
+                                <td>@exam.History / 20</td>
+                                <td>@exam.Reading / 10</td>
+                                <td>@exam.Literacy / 10</td>
+                                <td>@exam.Math / 50</td>
+                                <td>@exam.Informatics / 50</td>
+                                <td>
+                                    <strong>@exam.Total / 140</strong>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+
+                </table>
+
+            </div>
+        }
+
+    </section>
+
+    <!-- Academic Recommendations -->
+    <section class="curator-card">
+
+        <div class="card-heading">
+            <h3>Academic Support</h3>
+            <p>Recommendations for selected student</p>
+        </div>
+
+        <div class="recommendations">
+
+            @if (OverdueTasks > 0)
+            {
+                <div class="recommendation warning">
+                    <strong>Assignments need attention</strong>
+                    <p>
+                        @OverdueTasks assignments are overdue.
+                        Review deadlines and plan additional support.
+                    </p>
+                </div>
+            }
+
+            @if (StudentExams.Count > 0)
+            {
+                <div class="recommendation info">
+                    <strong>Exam analysis available</strong>
+                    <p>
+                        Review the latest mock exam results
+                        to identify subjects for revision.
+                    </p>
+                </div>
+            }
+
+            @if (OverdueTasks == 0 &&
+                 StudentExams.Count == 0)
+            {
+                <div class="recommendation neutral">
+                    <strong>No recommendations yet</strong>
+                    <p>
+                        Recommendations will appear when
+                        assignments or exam data are available.
+                    </p>
+                </div>
+            }
+
+        </div>
+
+    </section>
+
+</div>
+
+@code {
+    private List<JsonElement> Students = new();
+    private List<StudyTask> StudentTasks = new();
+    private List<MockExam> StudentExams = new();
+    private Guid SelectedStudentId;
+    private bool Loading = true;
+    private string Error = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userId, out var curatorId))
+                throw new UnauthorizedAccessException("Sign in as curator first.");
+
+            var jwt = await CurrentToken.Get();
+            if (await RoleService.GetRoleAsync(jwt, userId!) != "Curator")
+                throw new UnauthorizedAccessException("Curator role is required.");
+
+            Students = await CuratorRepo.GetStudentsAsync(jwt, curatorId);
+            if (Students.Count > 0)
+            {
+                SelectedStudentId = Guid.Parse(Text(Students[0], "id"));
+                await LoadStudentAsync(jwt);
+            }
+        }
+        catch
+        {
+            Error = "Could not load curator data. Please sign in again or check Supabase.";
+            Students.Clear();
+            StudentTasks.Clear();
+            StudentExams.Clear();
+        }
+        finally { Loading = false; }
+    }
+
+    private async Task SelectStudentAsync(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var id) ||
+            !Students.Any(s => Text(s, "id") == id.ToString())) return;
+        SelectedStudentId = id;
+        Error = "";
+        Loading = true;
+        try { await LoadStudentAsync(await CurrentToken.Get()); }
+        catch
+        {
+            StudentTasks.Clear(); StudentExams.Clear();
+            Error = "Could not load this student's data.";
+        }
+        finally { Loading = false; }
+    }
+
+    private async Task LoadStudentAsync(string jwt)
+    {
+        // All queries run with the curator's own JWT and Supabase RLS.
+        var taskRows = await CuratorRepo.GetStudentTasksAsync(jwt, SelectedStudentId);
+        var examRows = await CuratorRepo.GetStudentExamsAsync(jwt, SelectedStudentId);
+        var scoreRows = await CuratorRepo.GetStudentScoresAsync(jwt, SelectedStudentId);
+
+        var tasks = taskRows.Select(t => new StudyTask
+        {
+            Id = Number(t, "id"),
+            Title = Text(t, "title"),
+            Subject = Text(t, "subject"),
+            Deadline = DateTime.TryParse(Text(t, "deadline"), out var d) ? d : DateTime.MinValue,
+            IsDone = Flag(t, "is_done")
+        }).ToList();
+
+        var exams = examRows.Select(x => new MockExam
+        {
+            Id = Number(x, "id"),
+            Date = DateTime.TryParse(Text(x, "taken_on"), out var d) ? d : DateTime.MinValue
+        }).ToList();
+        foreach (var scoreRow in scoreRows)
+        {
+            var exam = exams.FirstOrDefault(x => x.Id == Number(scoreRow, "exam_id"));
+            if (exam is null) continue;
+            var value = Number(scoreRow, "score");
+            switch (Text(scoreRow, "subject").ToLowerInvariant())
+            {
+                case "history": exam.History = value; break;
+                case "reading": exam.Reading = value; break;
+                case "literacy": exam.Literacy = value; break;
+                case "math": exam.Math = value; break;
+                case "informatics": exam.Informatics = value; break;
+            }
+        }
+        StudentTasks = tasks;
+        StudentExams = exams;
+    }
+
+    private static string Text(JsonElement x, string field) =>
+        x.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String
+            ? v.GetString() ?? "" : "";
+    private static int Number(JsonElement x, string field) =>
+        x.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.Number
+            ? v.GetInt32() : 0;
+    private static bool Flag(JsonElement x, string field) =>
+        x.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.True;
+
+    private int CompletedTasks => StudentTasks.Count(t => t.IsDone);
+    private int PendingTasks => StudentTasks.Count(t => !t.IsDone);
+    private int OverdueTasks => StudentTasks.Count(t => !t.IsDone && t.Deadline.Date < DateTime.Today);
+    private int CompletionRate => StudentTasks.Count == 0 ? 0 : CompletedTasks * 100 / StudentTasks.Count;
+    private MockExam? LatestExam => StudentExams.OrderByDescending(r => r.Date)
+        .ThenByDescending(r => r.Id).FirstOrDefault();
+    private List<MockExam> RecentExams => StudentExams.OrderByDescending(r => r.Date)
+        .ThenByDescending(r => r.Id).Take(5).ToList();
+    private IEnumerable<(string Name, int Score, int Max)> LatestSubjects
+    {
+        get
+        {
+            var x = LatestExam;
+            if (x is null) return Array.Empty<(string, int, int)>();
+            return new (string, int, int)[] {
+                ("History of Kazakhstan", x.History, 20), ("Reading Literacy", x.Reading, 10),
+                ("Mathematical Literacy", x.Literacy, 10), ("Mathematics", x.Math, 50),
+                ("Informatics", x.Informatics, 50)
+            };
+        }
+    }
+}

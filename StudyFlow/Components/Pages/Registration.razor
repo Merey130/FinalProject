@@ -1,0 +1,110 @@
+
+@page "/register"
+@layout AuthLayout
+@inject NavigationManager Nav
+
+<PageTitle>Create Account | StudyFlow</PageTitle>
+
+<div class="registration-page">
+
+    <div class="registration-header">
+        <span class="registration-eyebrow">GET STARTED</span>
+
+        <h1>Create account</h1>
+
+        <p>
+            Join StudyFlow and manage your
+            learning in one place.
+        </p>
+    </div>
+
+    <div class="account-type">
+        <div class="account-symbol">S</div>
+        <div>
+            <strong>Student Account</strong>
+            <p>For assignments and academic progress</p>
+        </div>
+    </div>
+
+    <form class="registration-form" method="post" action="/auth/register">
+        <AntiforgeryToken />
+
+        <div class="registration-field">
+            <label for="fullName">Full name</label>
+            <input id="fullName" name="displayName" required
+                   type="text"
+                   autocomplete="off"
+                   placeholder="Enter your full name" />
+        </div>
+
+        <div class="registration-field">
+            <label for="email">Email address</label>
+            <input id="email" name="email" required
+                   type="email"
+                   autocomplete="off"
+                   placeholder="name@example.com" />
+        </div>
+
+        <div class="registration-field">
+            <label for="password">Password</label>
+
+            <div class="registration-password">
+                <input id="password" name="password" required
+                       type="@(showPassword ? "text" : "password")"
+                       autocomplete="off"
+                       placeholder="Create a password" />
+
+                <button type="button"
+                        class="visibility-button"
+                        @onclick="TogglePassword">
+                    @(showPassword ? "Hide" : "Show")
+                </button>
+            </div>
+        </div>
+
+        <div class="registration-field">
+            <label for="confirmPassword">Confirm password</label>
+
+            <div class="registration-password">
+                <input id="confirmPassword" name="confirmPassword" required
+                       type="@(showPassword ? "text" : "password")"
+                       autocomplete="off"
+                       placeholder="Repeat your password" />
+            </div>
+        </div>
+
+        @if (Nav.Uri.Contains("error=", StringComparison.OrdinalIgnoreCase))
+        {
+            <div class="registration-notice" role="alert">
+                Registration failed. Check your details.
+            </div>
+        }
+
+        <button type="submit" class="registration-button">
+            Create account
+        </button>
+
+        <div class="registration-footer">
+            Already have an account?
+            <a href="/login">Sign in</a>
+        </div>
+
+    </form>
+
+</div>
+
+@code {
+    private bool showPassword;
+    private bool showPreviewMessage;
+
+    private void TogglePassword()
+    {
+        showPassword = !showPassword;
+    }
+
+    private void ShowPreview()
+    {
+        showPreviewMessage = true;
+    }
+}
+

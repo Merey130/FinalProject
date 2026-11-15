@@ -1,0 +1,15 @@
+
+namespace StudyFlow.Models;
+
+public class StudyTask
+{
+    public int Id { get; set; }
+
+    public string Title { get; set; } = "";
+
+    public string Subject { get; set; } = "Informatics";
+
+    public DateTime Deadline { get; set; }
+
+    public bool IsDone { get; set; }
+}

@@ -1,78 +1,260 @@
-﻿
-@page "/"
 
-<PageTitle>StudyFlow</PageTitle>
+@page "/dashboard"
+@attribute [Authorize]
+@using StudyFlow.Models
+@inject StudyFlow.Services.TaskState TaskState
 
-<h1>StudyFlow Dashboard</h1>
-<p>Welcome to your student management system!</p>
+<PageTitle>Dashboard | StudyFlow</PageTitle>
 
-<div class="row g-3 mt-3">
-    <div class="col-md-4">
-        <div class="card p-3">
-            <h5>Total Tasks</h5>
-            <h2>@tasks.Count</h2>
+<div class="dashboard-page">
+
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div>
+            <h1>Dashboard</h1>
+            <p>Manage your assignments and track your learning.</p>
         </div>
+
+        <span class="dashboard-label">Student Workspace</span>
     </div>
 
-    <div class="col-md-4">
-        <div class="card p-3">
-            <h5>Completed</h5>
-            <h2>@tasks.Count(t => t.IsDone)</h2>
+    <!-- Statistics -->
+    <div class="stats-grid">
+
+        <div class="stat-card">
+            <span>Total Tasks</span>
+            <h2>@TaskState.Tasks.Count</h2>
+            <p>All assignments</p>
         </div>
+
+        <div class="stat-card">
+            <span>Completed</span>
+            <h2>@CompletedCount</h2>
+            <p>Finished assignments</p>
+        </div>
+
+        <div class="stat-card">
+            <span>Pending</span>
+            <h2>@PendingCount</h2>
+            <p>Tasks to complete</p>
+        </div>
+
+        <div class="stat-card">
+            <span>Upcoming</span>
+            <h2>@UpcomingCount</h2>
+            <p>Due within 3 days</p>
+        </div>
+
     </div>
+
+    <!-- Learning Progress -->
+    <section class="dashboard-card progress-section">
+
+        <div class="section-heading">
+            <div>
+                <h3>Learning Progress</h3>
+                <p>Your assignment completion overview</p>
+            </div>
+
+            <strong class="progress-value">@Progress%</strong>
+        </div>
+
+        <div class="progress-track">
+            <div class="progress-fill"
+                 style="@($"width: {Progress}%")">
+            </div>
+        </div>
+
+        <p class="progress-caption">
+            @CompletedCount of @TaskState.Tasks.Count
+            assignments completed
+        </p>
+
+    </section>
+
+    <!-- Add Assignment -->
+    <section class="dashboard-card">
+
+        <div class="section-heading">
+            <div>
+                <h3>Add New Assignment</h3>
+                <p>Plan your next learning task</p>
+            </div>
+        </div>
+
+        <div class="assignment-form">
+
+            <div class="form-field">
+                <label for="taskTitle">Assignment title</label>
+
+                <input id="taskTitle"
+                       type="text"
+                       placeholder="Enter assignment name"
+                       @bind="newTitle" />
+            </div>
+
+            <div class="form-field">
+                <label for="taskSubject">Subject</label>
+
+                <select id="taskSubject" @bind="newSubject">
+                    <option value="Informatics">Informatics</option>
+                    <option value="Mathematics">Mathematics</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="taskDeadline">Deadline</label>
+
+                <input id="taskDeadline"
+                       type="date"
+                       @bind="newDeadline" />
+            </div>
+
+            <button class="add-task-button"
+                    @onclick="AddTask">
+                Add Task
+            </button>
+
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <p class="validation-message" role="alert">
+                @errorMessage
+            </p>
+        }
+
+    </section>
+
+    <!-- Assignment List -->
+    <section class="dashboard-card">
+
+        <div class="section-heading assignment-heading">
+            <div>
+                <h3>My Assignments</h3>
+                <p>Keep your tasks organized</p>
+            </div>
+
+            <a class="view-all-link" href="/tasks">
+                View all
+            </a>
+        </div>
+
+        @if (TaskState.Tasks.Count == 0)
+        {
+            <div class="empty-state">
+                <h4>No assignments yet</h4>
+                <p>Add your first assignment to get started.</p>
+            </div>
+        }
+        else
+        {
+            <div class="assignment-list">
+
+                @foreach (var task in TaskState.Tasks
+                    .OrderBy(t => t.IsDone)
+                    .ThenBy(t => t.Deadline))
+                {
+                    <div class="assignment-item" @key="task.Id">
+
+                        <input type="checkbox"
+                               class="task-checkbox"
+                               checked="@task.IsDone"
+                               aria-label="@($"Toggle completion for {task.Title}")"
+                               @onchange="() => TaskState.ToggleTaskAsync(task.Id)" />
+
+                        <div class="assignment-info">
+                            <h4 class="@(task.IsDone ? "task-finished" : "")">
+                                @task.Title
+                            </h4>
+
+                            <p>
+                                @task.Subject
+                                <span class="info-separator">·</span>
+                                @task.Deadline.ToString("dd MMM yyyy")
+                            </p>
+                        </div>
+
+                        @if (task.IsDone)
+                        {
+                            <span class="task-status completed">
+                                Completed
+                            </span>
+                        }
+                        else if (task.Deadline.Date < DateTime.Today)
+                        {
+                            <span class="task-status overdue">
+                                Overdue
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="task-status pending">
+                                Pending
+                            </span>
+                        }
+
+                        <button class="delete-task-button"
+                                title="Delete assignment"
+                                @onclick="() => TaskState.DeleteTaskAsync(task.Id)">
+                            Delete
+                        </button>
+
+                    </div>
+                }
+
+            </div>
+        }
+
+    </section>
+
 </div>
-
-<h3 class="mt-4">My Tasks</h3>
-
-<div class="d-flex gap-2 mb-3">
-    <input class="form-control"
-           placeholder="Enter a task"
-           @bind="newTask" />
-
-    <button class="btn btn-primary"
-            @onclick="AddTask">
-        Add
-    </button>
-</div>
-
-@foreach (var task in tasks)
-{
-    <div class="card p-3 mb-2">
-        <span>@task.Title</span>
-
-        <button class="btn btn-success mt-2"
-                @onclick="() => CompleteTask(task)">
-            @(task.IsDone ? "Completed ✓" : "Complete")
-        </button>
-    </div>
-}
 
 @code {
-    private string newTask = "";
-
-    private List<StudyTask> tasks = new();
-
-    private void AddTask()
+    protected override async Task OnInitializedAsync()
     {
-        if (!string.IsNullOrWhiteSpace(newTask))
+        try { await TaskState.LoadAsync(); }
+        catch { errorMessage = "Could not load tasks. Please sign in again or check Supabase."; }
+    }
+
+    private string newTitle = "";
+    private string newSubject = "Informatics";
+    private DateTime newDeadline = DateTime.Today.AddDays(2);
+    private string errorMessage = "";
+
+    private int CompletedCount =>
+        TaskState.Tasks.Count(t => t.IsDone);
+
+    private int PendingCount =>
+        TaskState.Tasks.Count(t => !t.IsDone);
+
+    private int UpcomingCount =>
+        TaskState.Tasks.Count(t =>
+            !t.IsDone &&
+            t.Deadline.Date >= DateTime.Today &&
+            t.Deadline.Date <= DateTime.Today.AddDays(3));
+
+    private int Progress =>
+        TaskState.Tasks.Count == 0
+            ? 0
+            : CompletedCount * 100 / TaskState.Tasks.Count;
+
+    private async Task AddTask()
+    {
+        errorMessage = "";
+
+        if (string.IsNullOrWhiteSpace(newTitle))
         {
-            tasks.Add(new StudyTask
-            {
-                Title = newTask
-            });
-
-            newTask = "";
+            errorMessage = "Please enter an assignment title.";
+            return;
         }
-    }
 
-    private void CompleteTask(StudyTask task)
-    {
-        task.IsDone = true;
-    }
+        await TaskState.AddTaskAsync(
+            newTitle.Trim(),
+            newSubject,
+            newDeadline
+        );
 
-    private class StudyTask
-    {
-        public string Title { get; set; } = "";
-        public bool IsDone { get; set; }
+        newTitle = "";
     }
 }

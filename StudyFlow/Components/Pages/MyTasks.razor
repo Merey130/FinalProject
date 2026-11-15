@@ -1,0 +1,214 @@
+
+@page "/tasks"
+@attribute [Authorize]
+@using StudyFlow.Models
+@inject StudyFlow.Services.TaskState TaskState
+
+<PageTitle>My Tasks | StudyFlow</PageTitle>
+
+<div class="tasks-page">
+    @if (loadError is not null)
+    {
+        <p role="alert" style="color:#b91c1c">@loadError</p>
+    }
+
+    <div class="tasks-header">
+        <h1>My Tasks</h1>
+        <p>Organize and manage your assignments.</p>
+    </div>
+
+    <!-- Statistics -->
+    <div class="task-stats">
+
+        <div class="task-stat-card">
+            <span>All Tasks</span>
+            <h2>@TaskState.Tasks.Count</h2>
+        </div>
+
+        <div class="task-stat-card">
+            <span>Completed</span>
+            <h2>@CompletedCount</h2>
+        </div>
+
+        <div class="task-stat-card">
+            <span>Pending</span>
+            <h2>@PendingCount</h2>
+        </div>
+
+    </div>
+
+    <!-- Search and Filter -->
+    <section class="tasks-card">
+
+        <div class="tasks-section-heading">
+            <h3>Search &amp; Filter</h3>
+            <p>Find assignments by name, subject or status.</p>
+        </div>
+
+        <div class="filters-grid">
+
+            <div class="filter-field">
+                <label for="taskSearch">Search</label>
+                <input id="taskSearch"
+                       type="search"
+                       placeholder="Search assignments..."
+                       @bind="searchText"
+                       @bind:event="oninput" />
+            </div>
+
+            <div class="filter-field">
+                <label for="subjectFilter">Subject</label>
+                <select id="subjectFilter"
+                        @bind="selectedSubject">
+                    <option value="All">All Subjects</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Informatics">Informatics</option>
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label for="statusFilter">Status</label>
+                <select id="statusFilter"
+                        @bind="selectedStatus">
+                    <option value="All">All Statuses</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Overdue">Overdue</option>
+                </select>
+            </div>
+
+            <button class="clear-button"
+                    @onclick="ClearFilters">
+                Clear
+            </button>
+
+        </div>
+    </section>
+
+    <!-- Assignment List -->
+    <section class="tasks-card">
+
+        <div class="tasks-list-heading">
+            <h3>Assignments</h3>
+            <span>@FilteredTasks.Count() results</span>
+        </div>
+
+        @if (!FilteredTasks.Any())
+        {
+            <div class="tasks-empty">
+                <h4>No assignments found</h4>
+                <p>Try changing your filters or adding a new task.</p>
+                <a href="/">Go to Dashboard</a>
+            </div>
+        }
+        else
+        {
+            <div class="tasks-list">
+
+                @foreach (var task in FilteredTasks)
+                {
+                    <div class="task-row" @key="task.Id">
+
+                        <input type="checkbox"
+                               class="task-check"
+                               checked="@task.IsDone"
+                               aria-label="@($"Complete {task.Title}")"
+                               @onchange="() => TaskState.ToggleTaskAsync(task.Id)" />
+
+                        <div class="task-details">
+
+                            <h4 class="@(task.IsDone ? "finished" : "")">
+                                @task.Title
+                            </h4>
+
+                            <p>
+                                @task.Subject
+                                <span class="task-separator">·</span>
+                                @task.Deadline.ToString("dd MMM yyyy")
+                            </p>
+
+                        </div>
+
+                        @if (task.IsDone)
+                        {
+                            <span class="status-pill done">
+                                Completed
+                            </span>
+                        }
+                        else if (task.Deadline.Date < DateTime.Today)
+                        {
+                            <span class="status-pill late">
+                                Overdue
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="status-pill waiting">
+                                Pending
+                            </span>
+                        }
+
+                        <button class="task-delete"
+                                @onclick="() => TaskState.DeleteTaskAsync(task.Id)">
+                            Delete
+                        </button>
+
+                    </div>
+                }
+
+            </div>
+        }
+
+    </section>
+
+</div>
+
+@code {
+    private string? loadError;
+    protected override async Task OnInitializedAsync()
+    {
+        try { await TaskState.LoadAsync(); }
+        catch { loadError = "Could not load tasks. Please sign in again or check Supabase."; }
+    }
+
+
+    private string searchText = "";
+    private string selectedSubject = "All";
+    private string selectedStatus = "All";
+
+    private int CompletedCount =>
+        TaskState.Tasks.Count(t => t.IsDone);
+
+    private int PendingCount =>
+        TaskState.Tasks.Count(t => !t.IsDone);
+
+    private IEnumerable<StudyTask> FilteredTasks =>
+        TaskState.Tasks
+            .Where(t =>
+                (string.IsNullOrWhiteSpace(searchText) ||
+                 t.Title.Contains(
+                     searchText,
+                     StringComparison.OrdinalIgnoreCase))
+                &&
+                (selectedSubject == "All" ||
+                 t.Subject == selectedSubject)
+                &&
+                (selectedStatus == "All" ||
+                 (selectedStatus == "Completed" && t.IsDone) ||
+                 (selectedStatus == "Pending" &&
+                  !t.IsDone &&
+                  t.Deadline.Date >= DateTime.Today) ||
+                 (selectedStatus == "Overdue" &&
+                  !t.IsDone &&
+                  t.Deadline.Date < DateTime.Today))
+            )
+            .OrderBy(t => t.IsDone)
+            .ThenBy(t => t.Deadline);
+
+    private void ClearFilters()
+    {
+        searchText = "";
+        selectedSubject = "All";
+        selectedStatus = "All";
+    }
+}
