@@ -1,11 +1,16 @@
 
 @page "/tasks"
+@attribute [Authorize]
 @using StudyFlow.Models
 @inject StudyFlow.Services.TaskState TaskState
 
 <PageTitle>My Tasks | StudyFlow</PageTitle>
 
 <div class="tasks-page">
+    @if (loadError is not null)
+    {
+        <p role="alert" style="color:#b91c1c">@loadError</p>
+    }
 
     <div class="tasks-header">
         <h1>My Tasks</h1>
@@ -108,7 +113,7 @@
                                class="task-check"
                                checked="@task.IsDone"
                                aria-label="@($"Complete {task.Title}")"
-                               @onchange="() => TaskState.ToggleTask(task.Id)" />
+                               @onchange="() => TaskState.ToggleTaskAsync(task.Id)" />
 
                         <div class="task-details">
 
@@ -144,7 +149,7 @@
                         }
 
                         <button class="task-delete"
-                                @onclick="() => TaskState.DeleteTask(task.Id)">
+                                @onclick="() => TaskState.DeleteTaskAsync(task.Id)">
                             Delete
                         </button>
 
@@ -159,6 +164,13 @@
 </div>
 
 @code {
+    private string? loadError;
+    protected override async Task OnInitializedAsync()
+    {
+        try { await TaskState.LoadAsync(); }
+        catch { loadError = "Could not load tasks. Please sign in again or check Supabase."; }
+    }
+
 
     private string searchText = "";
     private string selectedSubject = "All";

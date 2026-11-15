@@ -2,46 +2,32 @@ using StudyFlow.Models;
 
 namespace StudyFlow.Services;
 
-// Compatibility adapter for the current Home.razor and MyTasks.razor.
-// They call synchronous methods, so this adapter bridges them to the DB repository.
-// For a future production app, migrate the Razor event handlers to async instead.
-public sealed class TaskState
+public sealed class TaskState(StudyRepository repo, CurrentAccessToken current)
 {
-    private readonly StudyRepository _repo;
-    private List<StudyTask>? _cachedTasks;
+    private readonly List<StudyTask> _tasks = [];
+    public IReadOnlyList<StudyTask> Tasks => _tasks;
 
-    public TaskState(StudyRepository repo) => _repo = repo;
-
-    // On a new browser session this loads tasks from Supabase, not RAM.
-    public IReadOnlyList<StudyTask> Tasks => EnsureLoaded();
-
-    public void AddTask(string title, string subject, DateTime deadline)
+    public async Task LoadAsync()
+    {
+        var rows = await repo.GetTasks(await current.Get());
+        _tasks.Clear(); _tasks.AddRange(rows);
+    }
+    public async Task AddTaskAsync(string title, string subject, DateTime deadline)
     {
         if (string.IsNullOrWhiteSpace(title)) return;
-        var tasks = EnsureLoaded();
-        var added = _repo.CreateTaskAsync(title, subject, deadline)
-            .ConfigureAwait(false).GetAwaiter().GetResult();
-        tasks.Add(added);
+        var row = await repo.AddTask(await current.Get(), title.Trim(), subject, deadline);
+        _tasks.Add(row);
     }
-
-    public void ToggleTask(int id)
+    public async Task ToggleTaskAsync(int id)
     {
-        var tasks = EnsureLoaded();
-        var updated = _repo.ToggleTaskAsync(id)
-            .ConfigureAwait(false).GetAwaiter().GetResult();
-        if (updated is null) return;
-        var current = tasks.FirstOrDefault(x => x.Id == id);
-        if (current is not null) current.IsDone = updated.IsDone;
+        var task = _tasks.FirstOrDefault(t=>t.Id==id);
+        if (task is null) return;
+        var updated = await repo.SetDone(await current.Get(), id, !task.IsDone);
+        if (updated is not null) task.IsDone=updated.IsDone;
     }
-
-    public void DeleteTask(int id)
+    public async Task DeleteTaskAsync(int id)
     {
-        var tasks = EnsureLoaded();
-        var deleted = _repo.DeleteTaskAsync(id)
-            .ConfigureAwait(false).GetAwaiter().GetResult();
-        if (deleted) tasks.RemoveAll(x => x.Id == id);
+        await repo.DeleteTask(await current.Get(), id);
+        _tasks.RemoveAll(t=>t.Id==id);
     }
-
-    private List<StudyTask> EnsureLoaded() => _cachedTasks ??=
-        _repo.GetTasksAsync().ConfigureAwait(false).GetAwaiter().GetResult();
 }

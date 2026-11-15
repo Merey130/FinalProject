@@ -1,229 +1,79 @@
-using Npgsql;
-using NpgsqlTypes;
+using System.Globalization;
+using System.Text.Json.Serialization;
 using StudyFlow.Models;
 
 namespace StudyFlow.Services;
 
-// Data layer. Parameterized commands prevent SQL injection.
-// All data is stored in Supabase PostgreSQL, not in a local JSON file.
-public sealed class StudyRepository
+public sealed class StudyRepository(SupabaseDatabase db)
 {
-    private readonly NpgsqlDataSource _database;
-
-    public StudyRepository(NpgsqlDataSource database) => _database = database;
-
-    public async Task<bool> CanConnectAsync(CancellationToken ct = default)
+    public async Task<List<StudyTask>> GetTasks(string token)
     {
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand("SELECT 1", conn);
-        return Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false)) == 1;
+        var rows = await db.Get<TaskRow>("sf_tasks?select=id,title,subject,deadline,is_done&order=deadline.asc", token);
+        return rows.Select(Map).ToList();
     }
-
-    private static StudyTask ReadTask(NpgsqlDataReader r) => new()
+    public async Task<StudyTask> AddTask(string token, string title, string subject, DateTime deadline)
     {
-        Id = r.GetInt32(0),
-        Title = r.GetString(1),
-        Subject = r.GetString(2),
-        Deadline = r.GetFieldValue<DateOnly>(3).ToDateTime(TimeOnly.MinValue),
-        IsDone = r.GetBoolean(4)
-    };
-
-    public async Task<List<StudyTask>> GetTasksAsync(CancellationToken ct = default)
-    {
-        var result = new List<StudyTask>();
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(
-            "SELECT id, title, subject, deadline, is_done FROM public.study_tasks ORDER BY deadline, id", conn);
-        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        while (await r.ReadAsync(ct).ConfigureAwait(false)) result.Add(ReadTask(r));
-        return result;
+        var row = await db.Insert<TaskRow>("sf_tasks?select=id,title,subject,deadline,is_done", token,
+            new { title, subject, deadline = deadline.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
+        return Map(row);
     }
-
-    public async Task<StudyTask> CreateTaskAsync(
-        string title, string subject, DateTime deadline, CancellationToken ct = default)
+    public async Task<StudyTask?> SetDone(string token, int id, bool done)
     {
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO public.study_tasks (title, subject, deadline)
-            VALUES (@title, @subject, @deadline)
-            RETURNING id, title, subject, deadline, is_done", conn);
-        cmd.Parameters.AddWithValue("title", NpgsqlDbType.Text, title.Trim());
-        cmd.Parameters.AddWithValue("subject", NpgsqlDbType.Text, subject.Trim());
-        cmd.Parameters.AddWithValue("deadline", NpgsqlDbType.Date, DateOnly.FromDateTime(deadline));
-        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        if (!await r.ReadAsync(ct).ConfigureAwait(false))
-            throw new InvalidOperationException("Inserting task did not return a row.");
-        return ReadTask(r);
+        var rows = await db.Patch<TaskRow>($"sf_tasks?id=eq.{id}&select=id,title,subject,deadline,is_done",
+            token, new { is_done = done });
+        return rows.Select(Map).FirstOrDefault();
     }
+    public Task DeleteTask(string token, int id) => db.Delete($"sf_tasks?id=eq.{id}", token);
 
-    public async Task<StudyTask?> UpdateTaskAsync(
-        int id, string title, string subject, DateTime deadline, bool isDone,
-        CancellationToken ct = default)
+    public async Task<List<PracticeExam>> GetExams(string token)
     {
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(@"
-            UPDATE public.study_tasks
-            SET title = @title, subject = @subject, deadline = @deadline, is_done = @is_done
-            WHERE id = @id
-            RETURNING id, title, subject, deadline, is_done", conn);
-        cmd.Parameters.AddWithValue("id", NpgsqlDbType.Integer, id);
-        cmd.Parameters.AddWithValue("title", NpgsqlDbType.Text, title.Trim());
-        cmd.Parameters.AddWithValue("subject", NpgsqlDbType.Text, subject.Trim());
-        cmd.Parameters.AddWithValue("deadline", NpgsqlDbType.Date, DateOnly.FromDateTime(deadline));
-        cmd.Parameters.AddWithValue("is_done", NpgsqlDbType.Boolean, isDone);
-        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        return await r.ReadAsync(ct).ConfigureAwait(false) ? ReadTask(r) : null;
-    }
-
-    public async Task<StudyTask?> ToggleTaskAsync(int id, CancellationToken ct = default)
-    {
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(@"
-            UPDATE public.study_tasks SET is_done = NOT is_done WHERE id = @id
-            RETURNING id, title, subject, deadline, is_done", conn);
-        cmd.Parameters.AddWithValue("id", NpgsqlDbType.Integer, id);
-        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        return await r.ReadAsync(ct).ConfigureAwait(false) ? ReadTask(r) : null;
-    }
-
-    public async Task<bool> DeleteTaskAsync(int id, CancellationToken ct = default)
-    {
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(
-            "DELETE FROM public.study_tasks WHERE id = @id RETURNING id", conn);
-        cmd.Parameters.AddWithValue("id", NpgsqlDbType.Integer, id);
-        return await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false) is not null;
-    }
-
-    private static Student ReadStudent(NpgsqlDataReader r) =>
-        new() { Id = r.GetInt32(0), Name = r.GetString(1) };
-
-    public async Task<List<Student>> GetStudentsAsync(CancellationToken ct = default)
-    {
-        var list = new List<Student>();
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(
-            "SELECT id, name FROM public.study_students ORDER BY id", conn);
-        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        while (await r.ReadAsync(ct).ConfigureAwait(false)) list.Add(ReadStudent(r));
-        return list;
-    }
-
-    public async Task<Student?> GetStudentAsync(int id, CancellationToken ct = default)
-    {
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(
-            "SELECT id, name FROM public.study_students WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("id", NpgsqlDbType.Integer, id);
-        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        return await r.ReadAsync(ct).ConfigureAwait(false) ? ReadStudent(r) : null;
-    }
-
-    public async Task<Student> CreateStudentAsync(string name, CancellationToken ct = default)
-    {
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.study_students (name) VALUES (@name) RETURNING id, name", conn);
-        cmd.Parameters.AddWithValue("name", NpgsqlDbType.Text, name.Trim());
-        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        if (!await r.ReadAsync(ct).ConfigureAwait(false))
-            throw new InvalidOperationException("Inserting student did not return a row.");
-        return ReadStudent(r);
-    }
-
-    public async Task<List<PracticeExam>> GetExamsAsync(
-        int? studentId = null, CancellationToken ct = default)
-    {
-        var list = new List<PracticeExam>();
-        var byId = new Dictionary<int, PracticeExam>();
-        var sql = @"
-            SELECT e.id, e.student_id, e.title, e.taken_on,
-                   s.subject, s.score, s.max_score
-            FROM public.study_practice_exams e
-            LEFT JOIN public.study_subject_scores s ON s.exam_id = e.id
-            " + (studentId.HasValue ? "WHERE e.student_id = @student_id " : "") + @"
-            ORDER BY e.taken_on DESC, e.id DESC, s.subject";
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        if (studentId.HasValue)
-            cmd.Parameters.AddWithValue("student_id", NpgsqlDbType.Integer, studentId.Value);
-        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        while (await r.ReadAsync(ct).ConfigureAwait(false))
-        {
-            var id = r.GetInt32(0);
-            if (!byId.TryGetValue(id, out var exam))
-            {
-                exam = new PracticeExam
-                {
-                    Id = id,
-                    StudentId = r.GetInt32(1),
-                    Title = r.GetString(2),
-                    TakenOn = r.GetFieldValue<DateOnly>(3).ToDateTime(TimeOnly.MinValue)
-                };
-                byId.Add(id, exam);
-                list.Add(exam);
-            }
-            if (!r.IsDBNull(4))
-            {
-                exam.Subjects.Add(new SubjectMark
-                {
-                    Subject = r.GetString(4),
-                    Score = r.GetInt32(5),
-                    MaxScore = r.GetInt32(6)
-                });
-            }
-        }
-        return list;
-    }
-
-    public async Task<PracticeExam?> CreateExamAsync(
-        int studentId, string title, DateTime takenOn, List<SubjectMark> subjects,
-        CancellationToken ct = default)
-    {
-        if (await GetStudentAsync(studentId, ct).ConfigureAwait(false) is null) return null;
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
-
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO public.study_practice_exams (student_id, title, taken_on)
-            VALUES (@student_id, @title, @taken_on) RETURNING id", conn, tx);
-        cmd.Parameters.AddWithValue("student_id", NpgsqlDbType.Integer, studentId);
-        cmd.Parameters.AddWithValue("title", NpgsqlDbType.Text, title.Trim());
-        cmd.Parameters.AddWithValue("taken_on", NpgsqlDbType.Date, DateOnly.FromDateTime(takenOn));
-        var id = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
-
-        foreach (var s in subjects)
-        {
-            await using var scoreCmd = new NpgsqlCommand(@"
-                INSERT INTO public.study_subject_scores (exam_id, subject, score, max_score)
-                VALUES (@exam_id, @subject, @score, @max_score)", conn, tx);
-            scoreCmd.Parameters.AddWithValue("exam_id", NpgsqlDbType.Integer, id);
-            scoreCmd.Parameters.AddWithValue("subject", NpgsqlDbType.Text, s.Subject.Trim());
-            scoreCmd.Parameters.AddWithValue("score", NpgsqlDbType.Integer, s.Score);
-            scoreCmd.Parameters.AddWithValue("max_score", NpgsqlDbType.Integer, s.MaxScore);
-            await scoreCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
-        }
-        await tx.CommitAsync(ct).ConfigureAwait(false);
-
-        return new PracticeExam
-        {
-            Id = id,
-            StudentId = studentId,
-            Title = title.Trim(),
-            TakenOn = takenOn.Date,
-            Subjects = subjects.Select(s => new SubjectMark
-            {
-                Subject = s.Subject.Trim(), Score = s.Score, MaxScore = s.MaxScore
+        var exams = await db.Get<ExamRow>("sf_practice_exams?select=id,title,taken_on&order=taken_on.desc", token);
+        var scores = await db.Get<ScoreRow>("sf_subject_scores?select=exam_id,subject,score,max_score", token);
+        return exams.Select(e => new PracticeExam {
+            Id=e.Id, Title=e.Title,
+            TakenOn=DateTime.ParseExact(e.TakenOn, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Subjects=scores.Where(s=>s.ExamId==e.Id).Select(s=>new SubjectMark {
+                Subject=s.Subject, Score=s.Score, MaxScore=s.MaxScore
             }).ToList()
-        };
+        }).ToList();
     }
-
-    public async Task<bool> DeleteExamAsync(int id, CancellationToken ct = default)
+    public async Task<PracticeExam> AddExam(string token, string title, DateTime date, List<SubjectMark> subjects)
     {
-        await using var conn = await _database.OpenConnectionAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(
-            "DELETE FROM public.study_practice_exams WHERE id = @id RETURNING id", conn);
-        cmd.Parameters.AddWithValue("id", NpgsqlDbType.Integer, id);
-        return await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false) is not null;
+        var exam = await db.Insert<ExamRow>("sf_practice_exams?select=id,title,taken_on", token,
+            new { title, taken_on=date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
+        try {
+            foreach (var s in subjects)
+                await db.Insert<ScoreRow>("sf_subject_scores?select=exam_id,subject,score,max_score", token,
+                    new { exam_id=exam.Id, subject=s.Subject, score=s.Score, max_score=s.MaxScore });
+        } catch {
+            await db.Delete($"sf_practice_exams?id=eq.{exam.Id}", token);
+            throw;
+        }
+        return new PracticeExam { Id=exam.Id, Title=exam.Title, TakenOn=date, Subjects=subjects };
+    }
+    public Task DeleteExam(string token, int id) => db.Delete($"sf_practice_exams?id=eq.{id}", token);
+
+    private static StudyTask Map(TaskRow r) => new() {
+        Id=r.Id, Title=r.Title, Subject=r.Subject,
+        Deadline=DateTime.ParseExact(r.Deadline, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+        IsDone=r.IsDone
+    };
+    private sealed class TaskRow {
+        [JsonPropertyName("id")] public int Id {get;set;}
+        [JsonPropertyName("title")] public string Title {get;set;}="";
+        [JsonPropertyName("subject")] public string Subject {get;set;}="";
+        [JsonPropertyName("deadline")] public string Deadline {get;set;}="";
+        [JsonPropertyName("is_done")] public bool IsDone {get;set;}
+    }
+    private sealed class ExamRow {
+        [JsonPropertyName("id")] public int Id {get;set;}
+        [JsonPropertyName("title")] public string Title {get;set;}="";
+        [JsonPropertyName("taken_on")] public string TakenOn {get;set;}="";
+    }
+    private sealed class ScoreRow {
+        [JsonPropertyName("exam_id")] public int ExamId {get;set;}
+        [JsonPropertyName("subject")] public string Subject {get;set;}="";
+        [JsonPropertyName("score")] public int Score {get;set;}
+        [JsonPropertyName("max_score")] public int MaxScore {get;set;}
     }
 }

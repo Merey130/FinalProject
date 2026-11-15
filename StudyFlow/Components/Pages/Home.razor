@@ -1,5 +1,6 @@
-﻿
+
 @page "/dashboard"
+@attribute [Authorize]
 @using StudyFlow.Models
 @inject StudyFlow.Services.TaskState TaskState
 
@@ -160,7 +161,7 @@
                                class="task-checkbox"
                                checked="@task.IsDone"
                                aria-label="@($"Toggle completion for {task.Title}")"
-                               @onchange="() => TaskState.ToggleTask(task.Id)" />
+                               @onchange="() => TaskState.ToggleTaskAsync(task.Id)" />
 
                         <div class="assignment-info">
                             <h4 class="@(task.IsDone ? "task-finished" : "")">
@@ -195,7 +196,7 @@
 
                         <button class="delete-task-button"
                                 title="Delete assignment"
-                                @onclick="() => TaskState.DeleteTask(task.Id)">
+                                @onclick="() => TaskState.DeleteTaskAsync(task.Id)">
                             Delete
                         </button>
 
@@ -210,6 +211,12 @@
 </div>
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        try { await TaskState.LoadAsync(); }
+        catch { errorMessage = "Could not load tasks. Please sign in again or check Supabase."; }
+    }
+
     private string newTitle = "";
     private string newSubject = "Informatics";
     private DateTime newDeadline = DateTime.Today.AddDays(2);
@@ -232,7 +239,7 @@
             ? 0
             : CompletedCount * 100 / TaskState.Tasks.Count;
 
-    private void AddTask()
+    private async Task AddTask()
     {
         errorMessage = "";
 
@@ -242,7 +249,7 @@
             return;
         }
 
-        TaskState.AddTask(
+        await TaskState.AddTaskAsync(
             newTitle.Trim(),
             newSubject,
             newDeadline

@@ -1,5 +1,6 @@
 
 @page "/curator"
+@attribute [Authorize(Policy = "CuratorOnly")]
 @using StudyFlow.Models
 @inject StudyFlow.Services.TaskState TaskState
 @inject StudyFlow.Services.MockExamState ExamState

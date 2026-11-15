@@ -1,5 +1,6 @@
 
 @page "/progress"
+@attribute [Authorize]
 @using StudyFlow.Models
 @inject StudyFlow.Services.MockExamState ExamState
 
@@ -282,6 +283,12 @@
 </div>
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        try { await ExamState.LoadAsync(); }
+        catch { errorMessage = "Could not load exam results from Supabase."; }
+    }
+
     private DateTime testDate = DateTime.Today;
 
     private int history;
@@ -383,7 +390,7 @@
     private string ChartLine =>
         string.Join(" ", ChartPoints.Select(p => $"{p.X},{p.Y}"));
 
-    private void AddResult()
+    private async Task AddResult()
     {
         errorMessage = "";
         successMessage = "";
@@ -404,7 +411,7 @@
             return;
         }
 
-        ExamState.AddResult(new MockExam
+        await ExamState.AddResultAsync(new MockExam
         {
             Date = testDate.Date,
             History = history,
@@ -423,9 +430,9 @@
         successMessage = "Mock exam result saved.";
     }
 
-    private void DeleteResult(int id)
+    private async Task DeleteResult(int id)
     {
-        ExamState.DeleteResult(id);
+        await ExamState.DeleteResultAsync(id);
         successMessage = "";
     }
 }
