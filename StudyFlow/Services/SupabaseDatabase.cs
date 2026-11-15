@@ -18,7 +18,10 @@ public sealed class SupabaseDatabase(IHttpClientFactory factory, SupabaseOptions
     {
         using var r = await Send(HttpMethod.Post, path, token, body, true);
         var rows = await r.Content.ReadFromJsonAsync<List<T>>(Json);
-        return rows?.FirstOrDefault() ?? throw new InvalidOperationException("Supabase returned no row.");
+        if (rows is null || rows.Count == 0)
+    throw new InvalidOperationException("Supabase returned no row.");
+
+return rows[0];
     }
     public async Task<List<T>> Patch<T>(string path, string token, object body)
     {
