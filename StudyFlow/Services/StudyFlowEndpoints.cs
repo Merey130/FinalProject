@@ -1,10 +1,10 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using StudyFlow.Models;
 
 namespace StudyFlow.Services;
 
+// Development-only API for tasks, students and mock exam results.
+// Auth must be implemented before this is used with real student data.
 public static class StudyFlowEndpoints
 {
     public static IEndpointRouteBuilder MapStudyFlowApi(this IEndpointRouteBuilder app)
@@ -12,111 +12,111 @@ public static class StudyFlowEndpoints
         var api = app.MapGroup("/api");
 
         api.MapGet("/health", () => Results.Ok(new { status = "ok", app = "StudyFlow" }));
-
-        // Assignments: automatically reflected on the existing Blazor pages.
-        api.MapGet("/tasks", (StudyDataStore store) => Results.Ok(store.GetTasks()));
-
-        api.MapPost("/tasks", (TaskInput input, StudyDataStore store) =>
+        api.MapGet("/db-health", async (StudyRepository repo, ILogger<StudyRepository> log,
+            CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(input.Title))
-                return Results.BadRequest(new { error = "Title is required." });
-            if (input.Title.Length > 200)
-                return Results.BadRequest(new { error = "Title must be 200 characters or less." });
-            if (input.Deadline == default)
-                return Results.BadRequest(new { error = "Deadline is required." });
+            try
+            {
+                return await repo.CanConnectAsync(ct)
+                    ? Results.Ok(new { status = "connected" })
+                    : Results.Problem("Database not available", statusCode: 503);
+            }
+            catch (Exception ex)
+            {
+                log.LogWarning(ex, "Supabase database connection failed");
+                return Results.Problem("Database connection unavailable; check local server logs.", statusCode: 503);
+            }
+        });
 
-            var task = store.AddTask(input.Title, input.Subject, input.Deadline);
+        api.MapGet("/tasks", async (StudyRepository repo, CancellationToken ct) =>
+            Results.Ok(await repo.GetTasksAsync(ct)));
+
+        api.MapPost("/tasks", async (TaskInput input, StudyRepository repo, CancellationToken ct) =>
+        {
+            var error = ValidateTask(input);
+            if (error is not null) return Results.BadRequest(new { error });
+            var task = await repo.CreateTaskAsync(input.Title, input.Subject, input.Deadline, ct);
             return Results.Created($"/api/tasks/{task.Id}", task);
         });
 
-        api.MapPut("/tasks/{id:int}", (int id, TaskEditInput input, StudyDataStore store) =>
+        api.MapPut("/tasks/{id:int}", async (int id, TaskEditInput input,
+            StudyRepository repo, CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(input.Title) || input.Title.Length > 200 || input.Deadline == default)
-                return Results.BadRequest(new { error = "Valid title and deadline are required." });
-
-            var task = store.UpdateTask(id, input.Title, input.Subject, input.Deadline, input.IsDone);
+            var error = ValidateTask(input);
+            if (error is not null) return Results.BadRequest(new { error });
+            var task = await repo.UpdateTaskAsync(id, input.Title, input.Subject,
+                input.Deadline, input.IsDone, ct);
             return task is null ? Results.NotFound() : Results.Ok(task);
         });
 
-        api.MapPatch("/tasks/{id:int}/toggle", (int id, StudyDataStore store) =>
-            store.ToggleTask(id) ? Results.NoContent() : Results.NotFound());
+        api.MapPatch("/tasks/{id:int}/toggle", async (int id, StudyRepository repo, CancellationToken ct) =>
+            await repo.ToggleTaskAsync(id, ct) is null ? Results.NotFound() : Results.NoContent());
 
-        api.MapDelete("/tasks/{id:int}", (int id, StudyDataStore store) =>
-            store.DeleteTask(id) ? Results.NoContent() : Results.NotFound());
+        api.MapDelete("/tasks/{id:int}", async (int id, StudyRepository repo, CancellationToken ct) =>
+            await repo.DeleteTaskAsync(id, ct) ? Results.NoContent() : Results.NotFound());
 
-        api.MapGet("/progress", (StudyDataStore store) =>
+        api.MapGet("/progress", async (StudyRepository repo, CancellationToken ct) =>
         {
-            var tasks = store.GetTasks();
-            var completed = tasks.Count(t => t.IsDone);
+            var tasks = await repo.GetTasksAsync(ct);
+            var done = tasks.Count(t => t.IsDone);
             return Results.Ok(new
             {
                 totalTasks = tasks.Count,
-                completedTasks = completed,
-                pendingTasks = tasks.Count - completed,
+                completedTasks = done,
+                pendingTasks = tasks.Count - done,
                 overdueTasks = tasks.Count(t => !t.IsDone && t.Deadline.Date < DateTime.Today),
-                completionPercent = tasks.Count == 0 ? 0 : (int)Math.Round(100.0 * completed / tasks.Count)
+                completionPercent = tasks.Count == 0 ? 0 : (int)Math.Round(done * 100.0 / tasks.Count)
             });
         });
 
-        // Student directory and practice-exam results (total + score per subject).
-        api.MapGet("/students", (StudyDataStore store) => Results.Ok(store.GetStudents()));
+        api.MapGet("/students", async (StudyRepository repo, CancellationToken ct) =>
+            Results.Ok(await repo.GetStudentsAsync(ct)));
 
-        api.MapPost("/students", (StudentInput input, StudyDataStore store) =>
+        api.MapGet("/students/{id:int}", async (int id, StudyRepository repo, CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(input.Name) || input.Name.Length > 80)
-                return Results.BadRequest(new { error = "Name must be 1-80 characters." });
-
-            var student = store.AddStudent(input.Name);
-            return Results.Created($"/api/students/{student.Id}", student);
-        });
-
-        api.MapGet("/students/{id:int}", (int id, StudyDataStore store) =>
-        {
-            var student = store.GetStudent(id);
+            var student = await repo.GetStudentAsync(id, ct);
             return student is null ? Results.NotFound() : Results.Ok(student);
         });
 
-        api.MapGet("/exams", (int? studentId, StudyDataStore store) =>
-            Results.Ok(store.GetExams(studentId)));
-
-        api.MapPost("/exams", (ExamInput input, StudyDataStore store) =>
+        api.MapPost("/students", async (StudentInput input, StudyRepository repo, CancellationToken ct) =>
         {
-            if (input.StudentId < 1)
-                return Results.BadRequest(new { error = "Valid studentId is required." });
-            if (string.IsNullOrWhiteSpace(input.Title) || input.Title.Length > 200)
-                return Results.BadRequest(new { error = "Title must be 1-200 characters." });
-            if (input.TakenOn == default)
-                return Results.BadRequest(new { error = "TakenOn is required." });
+            if (string.IsNullOrWhiteSpace(input.Name) || input.Name.Trim().Length > 80)
+                return Results.BadRequest(new { error = "Name must be 1–80 characters." });
+            var student = await repo.CreateStudentAsync(input.Name, ct);
+            return Results.Created($"/api/students/{student.Id}", student);
+        });
 
-            var error = ValidateSubjects(input.Subjects);
-            if (error is not null)
-                return Results.BadRequest(new { error });
+        api.MapGet("/exams", async (int? studentId, StudyRepository repo, CancellationToken ct) =>
+            Results.Ok(await repo.GetExamsAsync(studentId, ct)));
 
-            var exam = store.AddExam(input.StudentId, input.Title, input.TakenOn, input.Subjects!);
+        api.MapPost("/exams", async (ExamInput input, StudyRepository repo, CancellationToken ct) =>
+        {
+            var error = ValidateExam(input);
+            if (error is not null) return Results.BadRequest(new { error });
+            var exam = await repo.CreateExamAsync(
+                input.StudentId, input.Title, input.TakenOn, input.Subjects!, ct);
             return exam is null
-                ? Results.NotFound(new { error = "Student not found. Create the student first." })
+                ? Results.NotFound(new { error = "Student not found. Create a student first." })
                 : Results.Created($"/api/exams/{exam.Id}", exam);
         });
 
-        api.MapDelete("/exams/{id:int}", (int id, StudyDataStore store) =>
-            store.DeleteExam(id) ? Results.NoContent() : Results.NotFound());
+        api.MapDelete("/exams/{id:int}", async (int id, StudyRepository repo, CancellationToken ct) =>
+            await repo.DeleteExamAsync(id, ct) ? Results.NoContent() : Results.NotFound());
 
-        api.MapGet("/students/{id:int}/progress", (int id, StudyDataStore store) =>
+        api.MapGet("/students/{id:int}/progress", async (int id, StudyRepository repo,
+            CancellationToken ct) =>
         {
-            var student = store.GetStudent(id);
+            var student = await repo.GetStudentAsync(id, ct);
             if (student is null) return Results.NotFound();
-
-            var exams = store.GetExams(id);
+            var exams = await repo.GetExamsAsync(id, ct);
             var latest = exams.FirstOrDefault();
             var best = exams.OrderByDescending(e => e.Percentage).FirstOrDefault();
-
             return Results.Ok(new
             {
                 student,
                 examCount = exams.Count,
                 latestExam = latest,
                 bestExam = best,
-                // Subject marks come from the latest exam; totals are computed by PracticeExam.
                 latestSubjectScores = latest?.Subjects ?? new List<SubjectMark>()
             });
         });
@@ -124,41 +124,46 @@ public static class StudyFlowEndpoints
         return app;
     }
 
-    private static string? ValidateSubjects(List<SubjectMark>? subjects)
+    private static string? ValidateTask(TaskInput input)
     {
-        if (subjects is null || subjects.Count == 0)
-            return "At least one subject is required.";
-        if (subjects.Count > 20)
-            return "Too many subjects (maximum 20).";
-
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var subject in subjects)
-        {
-            if (subject is null || string.IsNullOrWhiteSpace(subject.Subject) || subject.Subject.Length > 80)
-                return "Every subject must have a name (1-80 characters).";
-            if (!names.Add(subject.Subject.Trim()))
-                return "The same subject cannot appear twice in one exam.";
-            if (subject.MaxScore <= 0 || subject.MaxScore > 1000 || subject.Score < 0 || subject.Score > subject.MaxScore)
-                return "Each score must be between 0 and maxScore, and maxScore must be between 1 and 1000.";
-        }
-
+        if (string.IsNullOrWhiteSpace(input.Title) || input.Title.Trim().Length > 200)
+            return "Title must be 1–200 characters.";
+        if (string.IsNullOrWhiteSpace(input.Subject) || input.Subject.Trim().Length > 80)
+            return "Subject must be 1–80 characters.";
+        if (input.Deadline == default) return "Deadline is required.";
         return null;
     }
 
-    public sealed class TaskInput : TaskInputBase
+    private static string? ValidateExam(ExamInput input)
     {
+        if (input.StudentId < 1) return "Valid studentId is required.";
+        if (string.IsNullOrWhiteSpace(input.Title) || input.Title.Trim().Length > 200)
+            return "Exam title must be 1–200 characters.";
+        if (input.TakenOn == default) return "TakenOn is required.";
+        if (input.Subjects is null || input.Subjects.Count is < 1 or > 20)
+            return "Provide 1–20 subjects.";
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in input.Subjects)
+        {
+            if (s is null || string.IsNullOrWhiteSpace(s.Subject) || s.Subject.Trim().Length > 80)
+                return "Every subject must have a name (1–80 characters).";
+            if (!names.Add(s.Subject.Trim())) return "Subject names must be unique per exam.";
+            if (s.MaxScore is < 1 or > 1000 || s.Score < 0 || s.Score > s.MaxScore)
+                return "Score must be 0..maxScore; maxScore must be 1..1000.";
+        }
+        return null;
     }
 
-    public sealed class TaskEditInput : TaskInputBase
-    {
-        public bool IsDone { get; set; }
-    }
-
-    public class TaskInputBase
+    public class TaskInput
     {
         public string Title { get; set; } = "";
         public string Subject { get; set; } = "Informatics";
         public DateTime Deadline { get; set; }
+    }
+
+    public sealed class TaskEditInput : TaskInput
+    {
+        public bool IsDone { get; set; }
     }
 
     public sealed class StudentInput
@@ -171,6 +176,6 @@ public static class StudyFlowEndpoints
         public int StudentId { get; set; }
         public string Title { get; set; } = "";
         public DateTime TakenOn { get; set; }
-        public List<SubjectMark>? Subjects { get; set; } = new();
+        public List<SubjectMark>? Subjects { get; set; }
     }
 }
