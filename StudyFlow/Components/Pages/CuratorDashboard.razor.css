@@ -1,0 +1,388 @@
+
+.curator-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
+    color: #172d4d;
+}
+
+.curator-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.curator-header h1 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    margin: 0 0 8px;
+}
+
+.curator-header p {
+    font-size: 15px;
+    color: #78869a;
+    margin: 0;
+}
+
+.curator-label {
+    background: #edf2f8;
+    color: #15457f;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.demo-notice {
+    background: #f0f5fb;
+    border: 1px solid #dce7f4;
+    color: #426080;
+    padding: 15px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 24px;
+}
+
+.curator-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    margin-bottom: 24px;
+}
+
+.curator-stat,
+.curator-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+}
+
+.curator-stat {
+    padding: 24px;
+}
+
+.curator-stat span {
+    color: #718198;
+    font-size: 14px;
+}
+
+.curator-stat h2 {
+    font-size: 34px;
+    font-weight: 700;
+    margin: 12px 0 6px;
+    color: #172d4d;
+}
+
+.curator-stat p {
+    color: #98a4b4;
+    font-size: 12px;
+    margin: 0;
+}
+
+.curator-card {
+    padding: 26px;
+    margin-bottom: 24px;
+    min-width: 0;
+}
+
+.curator-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.curator-grid .curator-card {
+    margin-bottom: 0;
+}
+
+.card-heading {
+    margin-bottom: 24px;
+}
+
+.card-heading h3 {
+    font-size: 19px;
+    font-weight: 650;
+    margin: 0 0 6px;
+}
+
+.card-heading p {
+    color: #8490a2;
+    font-size: 13px;
+    margin: 0;
+}
+
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 30px;
+}
+
+.overview-item {
+    background: #f7f9fc;
+    border: 1px solid #edf0f4;
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.overview-item span {
+    color: #718198;
+    font-size: 13px;
+}
+
+.overview-item strong {
+    font-size: 28px;
+    color: #172d4d;
+}
+
+.completion-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+.completion-heading span {
+    color: #718198;
+}
+
+.completion-heading strong {
+    color: #15457f;
+    font-size: 18px;
+}
+
+.completion-track,
+.subject-track {
+    height: 9px;
+    background: #e9eef5;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.completion-fill,
+.subject-fill {
+    height: 100%;
+    background: #15457f;
+    border-radius: 20px;
+    transition: width .25s ease;
+}
+
+.completion-caption {
+    color: #8490a2;
+    margin: 12px 0 0;
+    font-size: 12px;
+}
+
+.latest-score {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 28px;
+}
+
+.latest-score strong {
+    font-size: 38px;
+    line-height: 1;
+    color: #15457f;
+}
+
+.latest-score span {
+    font-size: 14px;
+    color: #8490a2;
+}
+
+.subject-results {
+    display: grid;
+    gap: 19px;
+}
+
+.subject-info {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    margin-bottom: 9px;
+}
+
+.subject-info strong {
+    color: #15457f;
+    white-space: nowrap;
+}
+
+.student-placeholder,
+.curator-empty {
+    border: 1px dashed #d9e1eb;
+    border-radius: 12px;
+    text-align: center;
+    padding: 36px 20px;
+}
+
+.placeholder-icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 16px;
+    border-radius: 12px;
+    background: #edf2f8;
+    color: #15457f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.placeholder-icon svg {
+    width: 27px;
+    height: 27px;
+}
+
+.student-placeholder h4,
+.curator-empty h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 10px;
+}
+
+.student-placeholder p,
+.curator-empty p {
+    max-width: 450px;
+    color: #8490a2;
+    font-size: 13px;
+    line-height: 1.7;
+    margin: 0 auto;
+}
+
+.curator-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.curator-table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.curator-table th {
+    padding: 15px 13px;
+    color: #75839a;
+    background: #f7f9fc;
+    text-align: left;
+    font-weight: 600;
+}
+
+.curator-table td {
+    padding: 17px 13px;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.curator-table tbody tr:hover {
+    background: #fafbfd;
+}
+
+.curator-table td strong {
+    color: #15457f;
+}
+
+.recommendations {
+    display: grid;
+    gap: 14px;
+}
+
+.recommendation {
+    padding: 17px 20px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+.recommendation strong {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 7px;
+}
+
+.recommendation p {
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.recommendation.warning {
+    background: #fff9ed;
+    border-color: #f5e4bc;
+    color: #825f23;
+}
+
+.recommendation.info {
+    background: #eff5fc;
+    border-color: #dce7f5;
+    color: #315e8e;
+}
+
+.recommendation.neutral {
+    background: #f7f9fc;
+    color: #718198;
+}
+
+@media (max-width: 1100px) {
+    .curator-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .curator-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .curator-page {
+        padding: 22px 14px;
+    }
+
+    .curator-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .curator-header h1 {
+        font-size: 25px;
+    }
+
+    .curator-stats {
+        gap: 10px;
+    }
+
+    .curator-stat,
+    .curator-card {
+        padding: 16px;
+    }
+
+    .curator-stat h2 {
+        font-size: 27px;
+    }
+
+    .curator-grid {
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+
+    .overview-grid {
+        gap: 10px;
+    }
+
+    .overview-item {
+        padding: 14px;
+    }
+
+    .student-placeholder {
+        padding: 28px 14px;
+    }
+}
