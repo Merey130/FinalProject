@@ -1,14 +1,10 @@
 ﻿
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="/">
-            🎓 StudyFlow
-        </a>
-    </div>
+<div class="top-row navbar navbar-dark">
+    <a class="navbar-brand" href="/">StudyFlow</a>
 </div>
 
 <input type="checkbox"
-       title="Navigation menu"
+       title="Toggle navigation"
        class="navbar-toggler" />
 
 <div class="nav-scrollable"
@@ -16,29 +12,59 @@
 
     <nav class="nav flex-column">
 
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link"
                      href=""
                      Match="NavLinkMatch.All">
-                🏠 Dashboard
+                <svg viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                <span>Dashboard</span>
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link" href="tasks">
-                📚 My Tasks
+                <svg viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round">
+                    <rect x="5" y="4" width="14" height="17" rx="2" />
+                    <path d="M9 4.5h6M9 10h6M9 14h6M9 18h4" />
+                </svg>
+                <span>My Tasks</span>
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link" href="progress">
-                📊 My Progress
+                <svg viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round"
+                     stroke-linejoin="round">
+                    <path d="M4 19V5" />
+                    <path d="M4 19h16" />
+                    <path d="m7 15 4-4 3 2 5-7" />
+                </svg>
+                <span>My Progress</span>
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link" href="curator">
-                👩‍🏫 Curator Panel
+                <svg viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round"
+                     stroke-linejoin="round">
+                    <circle cx="9" cy="8" r="3" />
+                    <path d="M3 20v-2a6 6 0 0 1 12 0v2" />
+                    <path d="M17 5a3 3 0 0 1 0 6" />
+                    <path d="M18 14a5 5 0 0 1 3 5v1" />
+                </svg>
+                <span>Curator Panel</span>
             </NavLink>
         </div>
 
