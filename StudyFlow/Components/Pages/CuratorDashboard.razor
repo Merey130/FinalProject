@@ -6,127 +6,193 @@
 
 <PageTitle>Curator Dashboard | StudyFlow</PageTitle>
 
-<div class="container-fluid py-4">
+<div class="curator-page">
 
-    <div class="p-4 mb-4 text-white rounded-4"
-         style="background: linear-gradient(120deg, #071F42, #16477C);">
+    <header class="curator-header">
+        <div>
+            <h1>Curator Dashboard</h1>
+            <p>Monitor learning progress and support students.</p>
+        </div>
+        <span class="curator-label">Curator Workspace</span>
+    </header>
 
-        <h2 class="fw-bold">Curator Dashboard 🎓</h2>
-
-        <p class="mb-0">
-            Monitor learning progress and support students.
-        </p>
-    </div>
-
-    <div class="alert alert-info">
-        Demo mode: student accounts are not connected yet.
-        The statistics below use this browser session.
+    <div class="demo-notice">
+        Demo preview: student accounts and role-based access
+        are not connected yet. Statistics show test data only.
     </div>
 
     <!-- Statistics -->
-    <div class="row g-3 mb-4">
+    <div class="curator-stats">
 
-        <div class="col-12 col-md-6 col-lg-3">
-            <div class="card p-3 shadow-sm h-100">
-                <p class="text-muted">Connected Students</p>
-                <h2>0</h2>
-            </div>
+        <div class="curator-stat">
+            <span>Connected Students</span>
+            <h2>0</h2>
+            <p>Accounts not connected</p>
         </div>
 
-        <div class="col-12 col-md-6 col-lg-3">
-            <div class="card p-3 shadow-sm h-100">
-                <p class="text-muted">Mock Exams</p>
-                <h2>@ExamState.Results.Count</h2>
-            </div>
+        <div class="curator-stat">
+            <span>Mock Exams</span>
+            <h2>@ExamState.Results.Count</h2>
+            <p>Recorded practice tests</p>
         </div>
 
-        <div class="col-12 col-md-6 col-lg-3">
-            <div class="card p-3 shadow-sm h-100">
-                <p class="text-muted">Pending Tasks</p>
-                <h2>@PendingTasks</h2>
-            </div>
+        <div class="curator-stat">
+            <span>Pending Tasks</span>
+            <h2>@PendingTasks</h2>
+            <p>Incomplete assignments</p>
         </div>
 
-        <div class="col-12 col-md-6 col-lg-3">
-            <div class="card p-3 shadow-sm h-100">
-                <p class="text-muted">Overdue Tasks</p>
-                <h2 class="text-danger">@OverdueTasks</h2>
-            </div>
+        <div class="curator-stat">
+            <span>Overdue Tasks</span>
+            <h2>@OverdueTasks</h2>
+            <p>Past their deadline</p>
         </div>
+
+    </div>
+
+    <div class="curator-grid">
+
+        <!-- Assignment Overview -->
+        <section class="curator-card">
+
+            <div class="card-heading">
+                <h3>Assignment Overview</h3>
+                <p>Current demo data</p>
+            </div>
+
+            <div class="overview-grid">
+
+                <div class="overview-item">
+                    <span>Completed Tasks</span>
+                    <strong>@CompletedTasks</strong>
+                </div>
+
+                <div class="overview-item">
+                    <span>Total Tasks</span>
+                    <strong>@TaskState.Tasks.Count</strong>
+                </div>
+
+            </div>
+
+            <div class="completion-heading">
+                <span>Completion Rate</span>
+                <strong>@CompletionRate%</strong>
+            </div>
+
+            <div class="completion-track">
+                <div class="completion-fill"
+                     style="width: @(CompletionRate)%">
+                </div>
+            </div>
+
+            <p class="completion-caption">
+                @CompletedTasks of @TaskState.Tasks.Count
+                assignments completed
+            </p>
+
+        </section>
+
+        <!-- Latest Mock Exam -->
+        <section class="curator-card">
+
+            <div class="card-heading">
+                <h3>Latest Mock Exam</h3>
+                <p>Subject performance overview</p>
+            </div>
+
+            @if (LatestExam == null)
+            {
+                <div class="curator-empty">
+                    <h4>No results available</h4>
+                    <p>Practice exam results will appear here.</p>
+                </div>
+            }
+            else
+            {
+                <div class="latest-score">
+                    <strong>@LatestExam.Total</strong>
+                    <span>/ 140 points</span>
+                </div>
+
+                <div class="subject-results">
+                    @foreach (var subject in LatestSubjects)
+                    {
+                        <div class="subject-result">
+
+                            <div class="subject-info">
+                                <span>@subject.Name</span>
+                                <strong>
+                                    @subject.Score / @subject.Max
+                                </strong>
+                            </div>
+
+                            <div class="subject-track">
+                                <div class="subject-fill"
+                                     style="width: @(subject.Score * 100.0 / subject.Max)%">
+                                </div>
+                            </div>
+
+                        </div>
+                    }
+                </div>
+            }
+
+        </section>
 
     </div>
 
     <!-- Student Monitoring -->
-    <div class="card p-4 shadow-sm mb-4">
+    <section class="curator-card">
 
-        <h4>Student Monitoring</h4>
-
-        <p class="text-muted">
-            Registered students will appear here
-            after Backend integration.
-        </p>
-
-        <div class="alert alert-light border">
-            No student accounts connected yet.
+        <div class="card-heading">
+            <h3>Student Monitoring</h3>
+            <p>Overview of assigned students</p>
         </div>
 
-    </div>
-
-    <!-- Assignment Overview -->
-    <div class="card p-4 shadow-sm mb-4">
-
-        <h4>Assignment Overview</h4>
-
-        <p class="text-muted">
-            Current session preview
-        </p>
-
-        <div class="row g-3">
-
-            <div class="col-md-6">
-                <div class="p-3 rounded-3 bg-light">
-                    <p>Completed Tasks</p>
-                    <h3>@CompletedTasks</h3>
-                </div>
+        <div class="student-placeholder">
+            <div class="placeholder-icon">
+                <svg viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="1.6"
+                     aria-hidden="true">
+                    <circle cx="9" cy="8" r="3" />
+                    <path d="M3 20v-2a6 6 0 0 1 12 0v2" />
+                    <path d="M17 5a3 3 0 0 1 0 6" />
+                    <path d="M18 14a5 5 0 0 1 3 5v1" />
+                </svg>
             </div>
 
-            <div class="col-md-6">
-                <div class="p-3 rounded-3 bg-light">
-                    <p>Completion Rate</p>
-                    <h3>@CompletionRate%</h3>
-                </div>
-            </div>
-
+            <h4>No students connected</h4>
+            <p>
+                Student accounts and curator assignments
+                will appear here after authentication
+                and role management are implemented.
+            </p>
         </div>
 
-        <div class="progress mt-4" style="height: 15px;">
-            <div class="progress-bar"
-                 style="width: @(CompletionRate)%; background-color: #16477C;">
-            </div>
+    </section>
+
+    <!-- Recent Mock Exams -->
+    <section class="curator-card">
+
+        <div class="card-heading">
+            <h3>Recent Mock Exam Results</h3>
+            <p>Five most recent practice tests</p>
         </div>
-
-    </div>
-
-    <!-- Exam Results -->
-    <div class="card p-4 shadow-sm mb-4">
-
-        <h4>Recent Mock Exam Results</h4>
-
-        <p class="text-muted">
-            Current session preview
-        </p>
 
         @if (RecentExams.Count == 0)
         {
-            <div class="alert alert-light border">
-                No exam results available yet.
+            <div class="curator-empty">
+                <h4>No mock exams yet</h4>
+                <p>There are no recorded results to display.</p>
             </div>
         }
         else
         {
-            <div class="table-responsive">
+            <div class="curator-table-scroll">
 
-                <table class="table table-striped align-middle">
+                <table class="curator-table">
 
                     <thead>
                         <tr>
@@ -160,44 +226,59 @@
                     </tbody>
 
                 </table>
+
             </div>
         }
 
-    </div>
+    </section>
 
-    <!-- Recommendations -->
-    <div class="card p-4 shadow-sm mb-4">
+    <!-- Academic Recommendations -->
+    <section class="curator-card">
 
-        <h4>Academic Support Recommendations</h4>
+        <div class="card-heading">
+            <h3>Academic Support</h3>
+            <p>Recommendations based on available demo data</p>
+        </div>
 
-        @if (OverdueTasks > 0)
-        {
-            <div class="alert alert-warning">
-                Some assignments are overdue.
-                Review the deadlines and consider
-                providing additional support.
-            </div>
-        }
+        <div class="recommendations">
 
-        @if (ExamState.Results.Count > 0)
-        {
-            <div class="alert alert-primary">
-                Mock exam results are available.
-                Review subject scores to identify
-                topics for revision.
-            </div>
-        }
+            @if (OverdueTasks > 0)
+            {
+                <div class="recommendation warning">
+                    <strong>Assignments need attention</strong>
+                    <p>
+                        @OverdueTasks assignments are overdue.
+                        Review deadlines and plan additional support.
+                    </p>
+                </div>
+            }
 
-        @if (OverdueTasks == 0 &&
-             ExamState.Results.Count == 0)
-        {
-            <div class="alert alert-light border">
-                Recommendations will appear
-                when learning data is available.
-            </div>
-        }
+            @if (ExamState.Results.Count > 0)
+            {
+                <div class="recommendation info">
+                    <strong>Exam analysis available</strong>
+                    <p>
+                        Review the latest mock exam results
+                        to identify subjects for revision.
+                    </p>
+                </div>
+            }
 
-    </div>
+            @if (OverdueTasks == 0 &&
+                 ExamState.Results.Count == 0)
+            {
+                <div class="recommendation neutral">
+                    <strong>No recommendations yet</strong>
+                    <p>
+                        Recommendations will appear when
+                        assignments or exam data are available.
+                    </p>
+                </div>
+            }
+
+        </div>
+
+    </section>
 
 </div>
 
@@ -219,10 +300,36 @@
             ? 0
             : CompletedTasks * 100 / TaskState.Tasks.Count;
 
+    private MockExam? LatestExam =>
+        ExamState.Results
+            .OrderByDescending(r => r.Date)
+            .ThenByDescending(r => r.Id)
+            .FirstOrDefault();
+
     private List<MockExam> RecentExams =>
         ExamState.Results
             .OrderByDescending(r => r.Date)
             .ThenByDescending(r => r.Id)
             .Take(5)
             .ToList();
+
+    private IEnumerable<(string Name, int Score, int Max)> LatestSubjects
+    {
+        get
+        {
+            var exam = LatestExam;
+
+            if (exam == null)
+                return Array.Empty<(string Name, int Score, int Max)>();
+
+            return new (string Name, int Score, int Max)[]
+            {
+                ("History of Kazakhstan", exam.History, 20),
+                ("Reading Literacy", exam.Reading, 10),
+                ("Mathematical Literacy", exam.Literacy, 10),
+                ("Mathematics", exam.Math, 50),
+                ("Informatics", exam.Informatics, 50)
+            };
+        }
+    }
 }
