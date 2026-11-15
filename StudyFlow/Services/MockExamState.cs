@@ -5,26 +5,98 @@ namespace StudyFlow.Services;
 
 public class MockExamState
 {
-    private readonly List<MockExam> _results = new();
+    private readonly StudyDataStore _store;
+    private readonly int _studentId;
 
-    private int _nextId = 1;
+    public MockExamState(StudyDataStore store)
+    {
+        _store = store;
 
-    public IReadOnlyList<MockExam> Results => _results;
+        // Temporary student for local demo only
+        const string demoName = "StudyFlow Demo Student";
+
+        var student = _store.GetStudents()
+            .FirstOrDefault(s => s.Name == demoName);
+
+        student ??= _store.AddStudent(demoName);
+
+        _studentId = student.Id;
+    }
+
+    public IReadOnlyList<MockExam> Results =>
+        _store.GetExams(_studentId)
+            .Select(exam => new MockExam
+            {
+                Id = exam.Id,
+                Date = exam.TakenOn,
+                History = GetScore(exam, "History"),
+                Reading = GetScore(exam, "Reading"),
+                Literacy = GetScore(exam, "Literacy"),
+                Math = GetScore(exam, "Math"),
+                Informatics = GetScore(exam, "Informatics")
+            })
+            .ToList();
 
     public void AddResult(MockExam exam)
     {
-        exam.Id = _nextId++;
+        var subjects = new List<SubjectMark>
+        {
+            new()
+            {
+                Subject = "History",
+                Score = exam.History,
+                MaxScore = 20
+            },
+            new()
+            {
+                Subject = "Reading",
+                Score = exam.Reading,
+                MaxScore = 10
+            },
+            new()
+            {
+                Subject = "Literacy",
+                Score = exam.Literacy,
+                MaxScore = 10
+            },
+            new()
+            {
+                Subject = "Math",
+                Score = exam.Math,
+                MaxScore = 50
+            },
+            new()
+            {
+                Subject = "Informatics",
+                Score = exam.Informatics,
+                MaxScore = 50
+            }
+        };
 
-        _results.Add(exam);
+        var savedExam = _store.AddExam(
+            _studentId,
+            "UNT Mock Exam",
+            exam.Date,
+            subjects
+        );
+
+        if (savedExam != null)
+        {
+            exam.Id = savedExam.Id;
+        }
     }
 
     public void DeleteResult(int id)
     {
-        var exam = _results.Find(r => r.Id == id);
+        _store.DeleteExam(id);
+    }
 
-        if (exam != null)
-        {
-            _results.Remove(exam);
-        }
+    private static int GetScore(
+        PracticeExam exam,
+        string subject)
+    {
+        return exam.Subjects
+            .FirstOrDefault(s => s.Subject == subject)
+            ?.Score ?? 0;
     }
 }
