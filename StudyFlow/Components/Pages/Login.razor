@@ -1,6 +1,9 @@
+
 @page "/"
 @page "/login"
 @layout AuthLayout
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Sign In | StudyFlow</PageTitle>
 
@@ -14,30 +17,52 @@
     <div class="login-header">
         <span class="login-eyebrow">WELCOME BACK</span>
         <h1>Sign in</h1>
-        <p>
-            Enter your details to access your workspace.
-        </p>
+        <p>Enter your details to access your workspace.</p>
     </div>
 
-    <div class="login-form">
+    @if (Nav.Uri.Contains("error=", StringComparison.OrdinalIgnoreCase))
+    {
+        <div class="login-notice" role="alert">
+            Sign in failed. Check your email and password,
+            or confirm your email address.
+        </div>
+    }
+
+    @if (Nav.Uri.Contains("registered=1", StringComparison.OrdinalIgnoreCase))
+    {
+        <div class="login-notice" role="status">
+            Account created successfully.
+            Please confirm your email if required.
+        </div>
+    }
+
+    <form class="login-form" method="post" action="/auth/login">
+
+        <AntiforgeryToken />
 
         <div class="login-field">
             <label for="loginEmail">Email address</label>
 
             <input id="loginEmail"
+                   name="email"
                    type="email"
                    placeholder="name@example.com"
-                   autocomplete="off" />
+                   autocomplete="email"
+                   maxlength="254"
+                   required />
         </div>
 
         <div class="login-field">
             <label for="loginPassword">Password</label>
 
             <div class="password-wrapper">
+
                 <input id="loginPassword"
+                       name="password"
                        type="@(showPassword ? "text" : "password")"
                        placeholder="Enter your password"
-                       autocomplete="off" />
+                       autocomplete="current-password"
+                       required />
 
                 <button type="button"
                         class="password-toggle"
@@ -45,37 +70,24 @@
                         @onclick="TogglePassword">
                     @(showPassword ? "Hide" : "Show")
                 </button>
+
             </div>
         </div>
 
-        <button type="button"
-                class="sign-in-button"
-                @onclick="ShowPreviewMessage">
+        <button type="submit" class="sign-in-button">
             Sign in
         </button>
 
-        @if (showPreviewNotice)
-        {
-            <div class="login-notice" role="status">
-                Authentication is not connected yet.
-                This is a design preview.
-            </div>
-        }
-
         <div class="login-footer">
-         <p>
-        New to StudyFlow?
-        <a href="/register">Create an account</a>
-         </p>
+            <p>
+                New to StudyFlow?
+                <a href="/register">Create an account</a>
+            </p>
         </div>
 
         <div class="login-divider"></div>
 
-       <a class="back-link" href="/dashboard">
-            Back to Dashboard
-        </a>
-
-    </div>
+    </form>
 
     <div class="login-bottom">
         StudyFlow · Student &amp; Curator Platform
@@ -85,15 +97,19 @@
 
 @code {
     private bool showPassword = false;
-    private bool showPreviewNotice = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            Nav.NavigateTo("/dashboard");
+        }
+    }
 
     private void TogglePassword()
     {
         showPassword = !showPassword;
-    }
-
-    private void ShowPreviewMessage()
-    {
-        showPreviewNotice = true;
     }
 }

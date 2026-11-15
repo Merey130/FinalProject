@@ -1,102 +1,54 @@
-
 using StudyFlow.Models;
 
 namespace StudyFlow.Services;
 
-public class MockExamState
+// The signed-in student's practice exams, backed by Supabase + RLS.
+public sealed class MockExamState(StudyRepository repository, CurrentAccessToken token)
 {
-    private readonly StudyDataStore _store;
-    private readonly int _studentId;
+    private readonly List<MockExam> _results = new();
 
-    public MockExamState(StudyDataStore store)
+    public IReadOnlyList<MockExam> Results => _results;
+
+    public async Task LoadAsync()
     {
-        _store = store;
-
-        // Temporary student for local demo only
-        const string demoName = "StudyFlow Demo Student";
-
-        var student = _store.GetStudents()
-            .FirstOrDefault(s => s.Name == demoName);
-
-        student ??= _store.AddStudent(demoName);
-
-        _studentId = student.Id;
-    }
-
-    public IReadOnlyList<MockExam> Results =>
-        _store.GetExams(_studentId)
-            .Select(exam => new MockExam
-            {
-                Id = exam.Id,
-                Date = exam.TakenOn,
-                History = GetScore(exam, "History"),
-                Reading = GetScore(exam, "Reading"),
-                Literacy = GetScore(exam, "Literacy"),
-                Math = GetScore(exam, "Math"),
-                Informatics = GetScore(exam, "Informatics")
-            })
-            .ToList();
-
-    public void AddResult(MockExam exam)
-    {
-        var subjects = new List<SubjectMark>
+        var rows = await repository.GetExams(await token.Get());
+        _results.Clear();
+        foreach (var row in rows)
         {
-            new()
+            _results.Add(new MockExam
             {
-                Subject = "History",
-                Score = exam.History,
-                MaxScore = 20
-            },
-            new()
-            {
-                Subject = "Reading",
-                Score = exam.Reading,
-                MaxScore = 10
-            },
-            new()
-            {
-                Subject = "Literacy",
-                Score = exam.Literacy,
-                MaxScore = 10
-            },
-            new()
-            {
-                Subject = "Math",
-                Score = exam.Math,
-                MaxScore = 50
-            },
-            new()
-            {
-                Subject = "Informatics",
-                Score = exam.Informatics,
-                MaxScore = 50
-            }
-        };
-
-        var savedExam = _store.AddExam(
-            _studentId,
-            "UNT Mock Exam",
-            exam.Date,
-            subjects
-        );
-
-        if (savedExam != null)
-        {
-            exam.Id = savedExam.Id;
+                Id = row.Id,
+                Date = row.TakenOn,
+                History = Score(row, "History"),
+                Reading = Score(row, "Reading"),
+                Literacy = Score(row, "Literacy"),
+                Math = Score(row, "Math"),
+                Informatics = Score(row, "Informatics")
+            });
         }
     }
 
-    public void DeleteResult(int id)
+    public async Task AddResultAsync(MockExam exam)
     {
-        _store.DeleteExam(id);
+        var marks = new List<SubjectMark>
+        {
+            new() { Subject = "History", Score = exam.History, MaxScore = 20 },
+            new() { Subject = "Reading", Score = exam.Reading, MaxScore = 10 },
+            new() { Subject = "Literacy", Score = exam.Literacy, MaxScore = 10 },
+            new() { Subject = "Math", Score = exam.Math, MaxScore = 50 },
+            new() { Subject = "Informatics", Score = exam.Informatics, MaxScore = 50 }
+        };
+        var saved = await repository.AddExam(await token.Get(), "UNT Mock Exam", exam.Date, marks);
+        exam.Id = saved.Id;
+        _results.Add(exam);
     }
 
-    private static int GetScore(
-        PracticeExam exam,
-        string subject)
+    public async Task DeleteResultAsync(int id)
     {
-        return exam.Subjects
-            .FirstOrDefault(s => s.Subject == subject)
-            ?.Score ?? 0;
+        await repository.DeleteExam(await token.Get(), id);
+        _results.RemoveAll(x => x.Id == id);
     }
+
+    private static int Score(PracticeExam exam, string subject) =>
+        exam.Subjects.FirstOrDefault(s => s.Subject == subject)?.Score ?? 0;
 }

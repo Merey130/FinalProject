@@ -2,28 +2,32 @@ using StudyFlow.Models;
 
 namespace StudyFlow.Services;
 
-// Existing .razor files can continue to call TaskState exactly as before.
-// Unlike the previous in-memory version, changes are now saved by StudyDataStore.
-public sealed class TaskState
+public sealed class TaskState(StudyRepository repo, CurrentAccessToken current)
 {
-    private readonly StudyDataStore _store;
+    private readonly List<StudyTask> _tasks = [];
+    public IReadOnlyList<StudyTask> Tasks => _tasks;
 
-    public TaskState(StudyDataStore store)
+    public async Task LoadAsync()
     {
-        _store = store;
+        var rows = await repo.GetTasks(await current.Get());
+        _tasks.Clear(); _tasks.AddRange(rows);
     }
-
-    public IReadOnlyList<StudyTask> Tasks => _store.GetTasks();
-
-    public void AddTask(string title, string subject, DateTime deadline)
+    public async Task AddTaskAsync(string title, string subject, DateTime deadline)
     {
-        if (string.IsNullOrWhiteSpace(title))
-            return;
-
-        _store.AddTask(title, subject, deadline);
+        if (string.IsNullOrWhiteSpace(title)) return;
+        var row = await repo.AddTask(await current.Get(), title.Trim(), subject, deadline);
+        _tasks.Add(row);
     }
-
-    public void ToggleTask(int id) => _store.ToggleTask(id);
-
-    public void DeleteTask(int id) => _store.DeleteTask(id);
+    public async Task ToggleTaskAsync(int id)
+    {
+        var task = _tasks.FirstOrDefault(t=>t.Id==id);
+        if (task is null) return;
+        var updated = await repo.SetDone(await current.Get(), id, !task.IsDone);
+        if (updated is not null) task.IsDone=updated.IsDone;
+    }
+    public async Task DeleteTaskAsync(int id)
+    {
+        await repo.DeleteTask(await current.Get(), id);
+        _tasks.RemoveAll(t=>t.Id==id);
+    }
 }

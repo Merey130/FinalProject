@@ -1,6 +1,7 @@
 
 @page "/register"
 @layout AuthLayout
+@inject NavigationManager Nav
 
 <PageTitle>Create Account | StudyFlow</PageTitle>
 
@@ -25,11 +26,12 @@
         </div>
     </div>
 
-    <div class="registration-form">
+    <form class="registration-form" method="post" action="/auth/register">
+        <AntiforgeryToken />
 
         <div class="registration-field">
             <label for="fullName">Full name</label>
-            <input id="fullName"
+            <input id="fullName" name="displayName" required
                    type="text"
                    autocomplete="off"
                    placeholder="Enter your full name" />
@@ -37,7 +39,7 @@
 
         <div class="registration-field">
             <label for="email">Email address</label>
-            <input id="email"
+            <input id="email" name="email" required
                    type="email"
                    autocomplete="off"
                    placeholder="name@example.com" />
@@ -47,7 +49,7 @@
             <label for="password">Password</label>
 
             <div class="registration-password">
-                <input id="password"
+                <input id="password" name="password" required
                        type="@(showPassword ? "text" : "password")"
                        autocomplete="off"
                        placeholder="Create a password" />
@@ -64,38 +66,30 @@
             <label for="confirmPassword">Confirm password</label>
 
             <div class="registration-password">
-                <input id="confirmPassword"
+                <input id="confirmPassword" name="confirmPassword" required
                        type="@(showPassword ? "text" : "password")"
                        autocomplete="off"
                        placeholder="Repeat your password" />
             </div>
         </div>
 
-        <p class="registration-hint">
-            Registration is in preview mode.
-            Please do not enter real passwords.
-        </p>
-
-        <button type="button"
-                class="registration-button"
-                @onclick="ShowPreview">
-            Create account
-        </button>
-
-        @if (showPreviewMessage)
+        @if (Nav.Uri.Contains("error=", StringComparison.OrdinalIgnoreCase))
         {
-            <div class="registration-notice" role="status">
-                Account registration is not connected yet.
-                The authentication backend is being developed.
+            <div class="registration-notice" role="alert">
+                Registration failed. Check your details.
             </div>
         }
+
+        <button type="submit" class="registration-button">
+            Create account
+        </button>
 
         <div class="registration-footer">
             Already have an account?
             <a href="/login">Sign in</a>
         </div>
 
-    </div>
+    </form>
 
 </div>
 
