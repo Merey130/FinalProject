@@ -31,7 +31,7 @@ public static class AuthEndpoints
         } catch { return Results.Redirect("/register?error=service"); }
     }
 
-    private static async Task<IResult> Login(HttpContext c, IAntiforgery af, SupabaseAuth auth, SessionStore sessions)
+    private static async Task<IResult> Login(HttpContext c, IAntiforgery af, SupabaseAuth auth, SessionStore sessions, StudyFlowRoleService roles)
     {
         if (!await Valid(c, af)) return Results.BadRequest("Invalid antiforgery token.");
         var f = await c.Request.ReadFormAsync();
@@ -42,10 +42,12 @@ public static class AuthEndpoints
             if (a is null || string.IsNullOrWhiteSpace(a.AccessToken) ||
                 string.IsNullOrWhiteSpace(a.RefreshToken) || !Guid.TryParse(a.User.Id, out _))
                 return Results.Redirect("/login?error=invalid");
+            var role = await roles.GetRoleAsync(a.AccessToken, a.User.Id);
             var sid = sessions.Add(a);
             var claims = new[] {
                 new Claim(ClaimTypes.NameIdentifier, a.User.Id),
                 new Claim(ClaimTypes.Email, a.User.Email ?? email),
+                new Claim(ClaimTypes.Role, role),
                 new Claim(SessionStore.Claim, sid)
             };
             await c.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,

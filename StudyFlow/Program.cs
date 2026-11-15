@@ -38,6 +38,8 @@ builder.Services.AddSingleton<SupabaseAuth>();
 builder.Services.AddSingleton<SupabaseDatabase>();
 builder.Services.AddScoped<CurrentAccessToken>();
 builder.Services.AddScoped<StudyRepository>();
+builder.Services.AddScoped<StudyFlowRoleService>();
+builder.Services.AddScoped<StudyFlowCuratorRepository>();
 builder.Services.AddScoped<TaskState>();
 builder.Services.AddScoped<MockExamState>();
 
@@ -51,6 +53,7 @@ app.MapGet("/api/health", (SupabaseOptions o) =>
     Results.Ok(new { status = "ok", app = "StudyFlow", supabaseConfigured = o.Configured }));
 app.MapStudyFlowAuth();
 app.MapStudyFlowApi();
+app.MapStudyFlowCuratorApi();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();

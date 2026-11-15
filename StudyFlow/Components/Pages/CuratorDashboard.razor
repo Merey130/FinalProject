@@ -2,8 +2,12 @@
 @page "/curator"
 @attribute [Authorize(Policy = "CuratorOnly")]
 @using StudyFlow.Models
-@inject StudyFlow.Services.TaskState TaskState
-@inject StudyFlow.Services.MockExamState ExamState
+@using System.Text.Json
+@using System.Security.Claims
+@inject StudyFlow.Services.CurrentAccessToken CurrentToken
+@inject StudyFlow.Services.StudyFlowRoleService RoleService
+@inject StudyFlow.Services.StudyFlowCuratorRepository CuratorRepo
+@inject AuthenticationStateProvider AuthState
 
 <PageTitle>Curator Dashboard | StudyFlow</PageTitle>
 
@@ -18,8 +22,9 @@
     </header>
 
     <div class="demo-notice">
-        Demo preview: student accounts and role-based access
-        are not connected yet. Statistics show test data only.
+        @if (Loading) { <span>Loading assigned students...</span> }
+        else if (!string.IsNullOrEmpty(Error)) { <span role="alert">@Error</span> }
+        else { <span>Data for assigned students from Supabase.</span> }
     </div>
 
     <!-- Statistics -->
@@ -27,13 +32,13 @@
 
         <div class="curator-stat">
             <span>Connected Students</span>
-            <h2>0</h2>
-            <p>Accounts not connected</p>
+            <h2>@Students.Count</h2>
+            <p>Assigned students</p>
         </div>
 
         <div class="curator-stat">
             <span>Mock Exams</span>
-            <h2>@ExamState.Results.Count</h2>
+            <h2>@StudentExams.Count</h2>
             <p>Recorded practice tests</p>
         </div>
 
@@ -58,7 +63,7 @@
 
             <div class="card-heading">
                 <h3>Assignment Overview</h3>
-                <p>Current demo data</p>
+                <p>Assigned student assignments</p>
             </div>
 
             <div class="overview-grid">
@@ -70,7 +75,7 @@
 
                 <div class="overview-item">
                     <span>Total Tasks</span>
-                    <strong>@TaskState.Tasks.Count</strong>
+                    <strong>@StudentTasks.Count</strong>
                 </div>
 
             </div>
@@ -87,7 +92,7 @@
             </div>
 
             <p class="completion-caption">
-                @CompletedTasks of @TaskState.Tasks.Count
+                @CompletedTasks of @StudentTasks.Count
                 assignments completed
             </p>
 
@@ -144,34 +149,29 @@
 
     <!-- Student Monitoring -->
     <section class="curator-card">
-
         <div class="card-heading">
             <h3>Student Monitoring</h3>
-            <p>Overview of assigned students</p>
+            <p>Choose an assigned student to view their progress</p>
         </div>
-
-        <div class="student-placeholder">
-            <div class="placeholder-icon">
-                <svg viewBox="0 0 24 24"
-                     fill="none"
-                     stroke="currentColor"
-                     stroke-width="1.6"
-                     aria-hidden="true">
-                    <circle cx="9" cy="8" r="3" />
-                    <path d="M3 20v-2a6 6 0 0 1 12 0v2" />
-                    <path d="M17 5a3 3 0 0 1 0 6" />
-                    <path d="M18 14a5 5 0 0 1 3 5v1" />
-                </svg>
+        @if (Students.Count == 0)
+        {
+            <div class="student-placeholder">
+                <h4>No students assigned</h4>
+                <p>Ask an administrator to assign a student in Supabase.</p>
             </div>
-
-            <h4>No students connected</h4>
-            <p>
-                Student accounts and curator assignments
-                will appear here after authentication
-                and role management are implemented.
-            </p>
-        </div>
-
+        }
+        else
+        {
+            <label for="curatorStudent">Assigned student</label>
+            <select id="curatorStudent" value="@SelectedStudentId" @onchange="SelectStudentAsync"
+                    style="padding:12px; margin:12px 0; border:1px solid #dce7f4; border-radius:8px; min-width:220px; max-width:100%;">
+                @foreach (var student in Students)
+                {
+                    <option value="@(Text(student, "id"))">@Text(student, "display_name")</option>
+                }
+            </select>
+            <p>Showing tasks and UNT results of the selected student.</p>
+        }
     </section>
 
     <!-- Recent Mock Exams -->
@@ -238,7 +238,7 @@
 
         <div class="card-heading">
             <h3>Academic Support</h3>
-            <p>Recommendations based on available demo data</p>
+            <p>Recommendations for selected student</p>
         </div>
 
         <div class="recommendations">
@@ -254,7 +254,7 @@
                 </div>
             }
 
-            @if (ExamState.Results.Count > 0)
+            @if (StudentExams.Count > 0)
             {
                 <div class="recommendation info">
                     <strong>Exam analysis available</strong>
@@ -266,7 +266,7 @@
             }
 
             @if (OverdueTasks == 0 &&
-                 ExamState.Results.Count == 0)
+                 StudentExams.Count == 0)
             {
                 <div class="recommendation neutral">
                     <strong>No recommendations yet</strong>
@@ -284,52 +284,125 @@
 </div>
 
 @code {
+    private List<JsonElement> Students = new();
+    private List<StudyTask> StudentTasks = new();
+    private List<MockExam> StudentExams = new();
+    private Guid SelectedStudentId;
+    private bool Loading = true;
+    private string Error = "";
 
-    private int CompletedTasks =>
-        TaskState.Tasks.Count(t => t.IsDone);
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userId, out var curatorId))
+                throw new UnauthorizedAccessException("Sign in as curator first.");
 
-    private int PendingTasks =>
-        TaskState.Tasks.Count(t => !t.IsDone);
+            var jwt = await CurrentToken.Get();
+            if (await RoleService.GetRoleAsync(jwt, userId!) != "Curator")
+                throw new UnauthorizedAccessException("Curator role is required.");
 
-    private int OverdueTasks =>
-        TaskState.Tasks.Count(t =>
-            !t.IsDone &&
-            t.Deadline.Date < DateTime.Today);
+            Students = await CuratorRepo.GetStudentsAsync(jwt, curatorId);
+            if (Students.Count > 0)
+            {
+                SelectedStudentId = Guid.Parse(Text(Students[0], "id"));
+                await LoadStudentAsync(jwt);
+            }
+        }
+        catch
+        {
+            Error = "Could not load curator data. Please sign in again or check Supabase.";
+            Students.Clear();
+            StudentTasks.Clear();
+            StudentExams.Clear();
+        }
+        finally { Loading = false; }
+    }
 
-    private int CompletionRate =>
-        TaskState.Tasks.Count == 0
-            ? 0
-            : CompletedTasks * 100 / TaskState.Tasks.Count;
+    private async Task SelectStudentAsync(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var id) ||
+            !Students.Any(s => Text(s, "id") == id.ToString())) return;
+        SelectedStudentId = id;
+        Error = "";
+        Loading = true;
+        try { await LoadStudentAsync(await CurrentToken.Get()); }
+        catch
+        {
+            StudentTasks.Clear(); StudentExams.Clear();
+            Error = "Could not load this student's data.";
+        }
+        finally { Loading = false; }
+    }
 
-    private MockExam? LatestExam =>
-        ExamState.Results
-            .OrderByDescending(r => r.Date)
-            .ThenByDescending(r => r.Id)
-            .FirstOrDefault();
+    private async Task LoadStudentAsync(string jwt)
+    {
+        // All queries run with the curator's own JWT and Supabase RLS.
+        var taskRows = await CuratorRepo.GetStudentTasksAsync(jwt, SelectedStudentId);
+        var examRows = await CuratorRepo.GetStudentExamsAsync(jwt, SelectedStudentId);
+        var scoreRows = await CuratorRepo.GetStudentScoresAsync(jwt, SelectedStudentId);
 
-    private List<MockExam> RecentExams =>
-        ExamState.Results
-            .OrderByDescending(r => r.Date)
-            .ThenByDescending(r => r.Id)
-            .Take(5)
-            .ToList();
+        var tasks = taskRows.Select(t => new StudyTask
+        {
+            Id = Number(t, "id"),
+            Title = Text(t, "title"),
+            Subject = Text(t, "subject"),
+            Deadline = DateTime.TryParse(Text(t, "deadline"), out var d) ? d : DateTime.MinValue,
+            IsDone = Flag(t, "is_done")
+        }).ToList();
 
+        var exams = examRows.Select(x => new MockExam
+        {
+            Id = Number(x, "id"),
+            Date = DateTime.TryParse(Text(x, "taken_on"), out var d) ? d : DateTime.MinValue
+        }).ToList();
+        foreach (var scoreRow in scoreRows)
+        {
+            var exam = exams.FirstOrDefault(x => x.Id == Number(scoreRow, "exam_id"));
+            if (exam is null) continue;
+            var value = Number(scoreRow, "score");
+            switch (Text(scoreRow, "subject").ToLowerInvariant())
+            {
+                case "history": exam.History = value; break;
+                case "reading": exam.Reading = value; break;
+                case "literacy": exam.Literacy = value; break;
+                case "math": exam.Math = value; break;
+                case "informatics": exam.Informatics = value; break;
+            }
+        }
+        StudentTasks = tasks;
+        StudentExams = exams;
+    }
+
+    private static string Text(JsonElement x, string field) =>
+        x.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String
+            ? v.GetString() ?? "" : "";
+    private static int Number(JsonElement x, string field) =>
+        x.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.Number
+            ? v.GetInt32() : 0;
+    private static bool Flag(JsonElement x, string field) =>
+        x.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.True;
+
+    private int CompletedTasks => StudentTasks.Count(t => t.IsDone);
+    private int PendingTasks => StudentTasks.Count(t => !t.IsDone);
+    private int OverdueTasks => StudentTasks.Count(t => !t.IsDone && t.Deadline.Date < DateTime.Today);
+    private int CompletionRate => StudentTasks.Count == 0 ? 0 : CompletedTasks * 100 / StudentTasks.Count;
+    private MockExam? LatestExam => StudentExams.OrderByDescending(r => r.Date)
+        .ThenByDescending(r => r.Id).FirstOrDefault();
+    private List<MockExam> RecentExams => StudentExams.OrderByDescending(r => r.Date)
+        .ThenByDescending(r => r.Id).Take(5).ToList();
     private IEnumerable<(string Name, int Score, int Max)> LatestSubjects
     {
         get
         {
-            var exam = LatestExam;
-
-            if (exam == null)
-                return Array.Empty<(string Name, int Score, int Max)>();
-
-            return new (string Name, int Score, int Max)[]
-            {
-                ("History of Kazakhstan", exam.History, 20),
-                ("Reading Literacy", exam.Reading, 10),
-                ("Mathematical Literacy", exam.Literacy, 10),
-                ("Mathematics", exam.Math, 50),
-                ("Informatics", exam.Informatics, 50)
+            var x = LatestExam;
+            if (x is null) return Array.Empty<(string, int, int)>();
+            return new (string, int, int)[] {
+                ("History of Kazakhstan", x.History, 20), ("Reading Literacy", x.Reading, 10),
+                ("Mathematical Literacy", x.Literacy, 10), ("Mathematics", x.Math, 50),
+                ("Informatics", x.Informatics, 50)
             };
         }
     }
