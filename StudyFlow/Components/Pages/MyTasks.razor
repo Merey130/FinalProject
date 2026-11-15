@@ -1,11 +1,16 @@
 
 @page "/tasks"
+@attribute [Authorize]
 @using StudyFlow.Models
 @inject StudyFlow.Services.TaskState TaskState
 
 <PageTitle>My Tasks | StudyFlow</PageTitle>
 
 <div class="container-fluid py-4">
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
 
     <div class="p-4 mb-4 text-white rounded-4"
          style="background: linear-gradient(120deg, #071F42, #16477C);">
@@ -92,7 +97,7 @@
                 <input type="checkbox"
                        class="form-check-input"
                        checked="@task.IsDone"
-                       @onchange="() => TaskState.ToggleTask(task.Id)" />
+                       @onchange="() => ToggleTaskAsync(task.Id)" />
 
                 <div class="flex-grow-1">
 
@@ -119,7 +124,7 @@
                 }
 
                 <button class="btn btn-outline-danger btn-sm"
-                        @onclick="() => TaskState.DeleteTask(task.Id)">
+                        @onclick="() => DeleteTaskAsync(task.Id)">
                     Delete
                 </button>
 
@@ -130,6 +135,26 @@
 </div>
 
 @code {
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { await TaskState.LoadAsync(); }
+        catch { errorMessage = "Could not load your tasks. Check your connection and sign-in."; }
+    }
+
+    private async Task ToggleTaskAsync(int id)
+    {
+        try { await TaskState.ToggleTaskAsync(id); errorMessage = null; }
+        catch { errorMessage = "Could not update the task."; }
+    }
+
+    private async Task DeleteTaskAsync(int id)
+    {
+        try { await TaskState.DeleteTaskAsync(id); errorMessage = null; }
+        catch { errorMessage = "Could not delete the task."; }
+    }
+
     private string searchText = "";
     private string selectedSubject = "All";
     private string selectedStatus = "All";

@@ -1,181 +1,68 @@
-using Microsoft.AspNetCore.Routing;
 using StudyFlow.Models;
 
 namespace StudyFlow.Services;
 
-// Development-only API for tasks, students and mock exam results.
-// Auth must be implemented before this is used with real student data.
 public static class StudyFlowEndpoints
 {
-    public static IEndpointRouteBuilder MapStudyFlowApi(this IEndpointRouteBuilder app)
+    public static void MapStudyFlowApi(this WebApplication app)
     {
-        var api = app.MapGroup("/api");
+        var api = app.MapGroup("/api").RequireAuthorization();
 
-        api.MapGet("/health", () => Results.Ok(new { status = "ok", app = "StudyFlow" }));
-        api.MapGet("/db-health", async (StudyRepository repo, ILogger<StudyRepository> log,
-            CancellationToken ct) =>
-        {
-            try
-            {
-                return await repo.CanConnectAsync(ct)
-                    ? Results.Ok(new { status = "connected" })
-                    : Results.Problem("Database not available", statusCode: 503);
-            }
-            catch (Exception ex)
-            {
-                log.LogWarning(ex, "Supabase database connection failed");
-                return Results.Problem("Database connection unavailable; check local server logs.", statusCode: 503);
-            }
+        api.MapGet("/me", (HttpContext c) => Results.Ok(new {
+            id=c.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+            email=c.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+        }));
+
+        api.MapGet("/tasks", async (HttpContext c, SessionStore s, SupabaseAuth a, StudyRepository r) =>
+            Results.Ok(await r.GetTasks(await Token(c,s,a))));
+
+        api.MapPost("/tasks", async (HttpContext c, NewTask x, SessionStore s, SupabaseAuth a, StudyRepository r) => {
+            if (string.IsNullOrWhiteSpace(x.Title)||x.Title.Length>200||string.IsNullOrWhiteSpace(x.Subject)||x.Subject.Length>80||x.Deadline==default)
+                return Results.BadRequest(new {error="Invalid task fields."});
+            var row=await r.AddTask(await Token(c,s,a),x.Title.Trim(),x.Subject.Trim(),x.Deadline);
+            return Results.Created($"/api/tasks/{row.Id}",row);
         });
 
-        api.MapGet("/tasks", async (StudyRepository repo, CancellationToken ct) =>
-            Results.Ok(await repo.GetTasksAsync(ct)));
-
-        api.MapPost("/tasks", async (TaskInput input, StudyRepository repo, CancellationToken ct) =>
-        {
-            var error = ValidateTask(input);
-            if (error is not null) return Results.BadRequest(new { error });
-            var task = await repo.CreateTaskAsync(input.Title, input.Subject, input.Deadline, ct);
-            return Results.Created($"/api/tasks/{task.Id}", task);
+        api.MapPatch("/tasks/{id:int}", async (HttpContext c, int id, TaskDone x, SessionStore s, SupabaseAuth a, StudyRepository r) => {
+            var row=await r.SetDone(await Token(c,s,a),id,x.IsDone);
+            return row is null?Results.NotFound():Results.Ok(row);
         });
 
-        api.MapPut("/tasks/{id:int}", async (int id, TaskEditInput input,
-            StudyRepository repo, CancellationToken ct) =>
-        {
-            var error = ValidateTask(input);
-            if (error is not null) return Results.BadRequest(new { error });
-            var task = await repo.UpdateTaskAsync(id, input.Title, input.Subject,
-                input.Deadline, input.IsDone, ct);
-            return task is null ? Results.NotFound() : Results.Ok(task);
+        api.MapDelete("/tasks/{id:int}", async (HttpContext c, int id, SessionStore s, SupabaseAuth a, StudyRepository r) => {
+            await r.DeleteTask(await Token(c,s,a),id); return Results.NoContent();
         });
 
-        api.MapPatch("/tasks/{id:int}/toggle", async (int id, StudyRepository repo, CancellationToken ct) =>
-            await repo.ToggleTaskAsync(id, ct) is null ? Results.NotFound() : Results.NoContent());
+        api.MapGet("/exams", async (HttpContext c, SessionStore s, SupabaseAuth a, StudyRepository r) =>
+            Results.Ok(await r.GetExams(await Token(c,s,a))));
 
-        api.MapDelete("/tasks/{id:int}", async (int id, StudyRepository repo, CancellationToken ct) =>
-            await repo.DeleteTaskAsync(id, ct) ? Results.NoContent() : Results.NotFound());
-
-        api.MapGet("/progress", async (StudyRepository repo, CancellationToken ct) =>
-        {
-            var tasks = await repo.GetTasksAsync(ct);
-            var done = tasks.Count(t => t.IsDone);
-            return Results.Ok(new
-            {
-                totalTasks = tasks.Count,
-                completedTasks = done,
-                pendingTasks = tasks.Count - done,
-                overdueTasks = tasks.Count(t => !t.IsDone && t.Deadline.Date < DateTime.Today),
-                completionPercent = tasks.Count == 0 ? 0 : (int)Math.Round(done * 100.0 / tasks.Count)
-            });
+        api.MapPost("/exams", async (HttpContext c, NewExam x, SessionStore s, SupabaseAuth a, StudyRepository r) => {
+            if (string.IsNullOrWhiteSpace(x.Title)||x.Title.Length>200||x.TakenOn==default||x.Subjects is null||x.Subjects.Count is <1 or >20||
+                x.Subjects.Any(v=>string.IsNullOrWhiteSpace(v.Subject)||v.Subject.Length>80||v.MaxScore<1||v.Score<0||v.Score>v.MaxScore)||
+                x.Subjects.Select(v=>v.Subject.Trim().ToLowerInvariant()).Distinct().Count()!=x.Subjects.Count)
+                return Results.BadRequest(new {error="Invalid exam or subject scores."});
+            var row=await r.AddExam(await Token(c,s,a),x.Title.Trim(),x.TakenOn,x.Subjects);
+            return Results.Created($"/api/exams/{row.Id}",row);
         });
 
-        api.MapGet("/students", async (StudyRepository repo, CancellationToken ct) =>
-            Results.Ok(await repo.GetStudentsAsync(ct)));
-
-        api.MapGet("/students/{id:int}", async (int id, StudyRepository repo, CancellationToken ct) =>
-        {
-            var student = await repo.GetStudentAsync(id, ct);
-            return student is null ? Results.NotFound() : Results.Ok(student);
+        api.MapDelete("/exams/{id:int}", async (HttpContext c, int id, SessionStore s, SupabaseAuth a, StudyRepository r) => {
+            await r.DeleteExam(await Token(c,s,a),id); return Results.NoContent();
         });
 
-        api.MapPost("/students", async (StudentInput input, StudyRepository repo, CancellationToken ct) =>
-        {
-            if (string.IsNullOrWhiteSpace(input.Name) || input.Name.Trim().Length > 80)
-                return Results.BadRequest(new { error = "Name must be 1–80 characters." });
-            var student = await repo.CreateStudentAsync(input.Name, ct);
-            return Results.Created($"/api/students/{student.Id}", student);
+        api.MapGet("/progress", async (HttpContext c, SessionStore s, SupabaseAuth a, StudyRepository r) => {
+            var token=await Token(c,s,a);
+            var tasks=await r.GetTasks(token); var exams=await r.GetExams(token);
+            var done=tasks.Count(v=>v.IsDone);
+            return Results.Ok(new {totalTasks=tasks.Count,completedTasks=done,pendingTasks=tasks.Count-done,
+                completionPercent=tasks.Count==0?0:done*100/tasks.Count,examCount=exams.Count,recentExams=exams.Take(5)});
         });
-
-        api.MapGet("/exams", async (int? studentId, StudyRepository repo, CancellationToken ct) =>
-            Results.Ok(await repo.GetExamsAsync(studentId, ct)));
-
-        api.MapPost("/exams", async (ExamInput input, StudyRepository repo, CancellationToken ct) =>
-        {
-            var error = ValidateExam(input);
-            if (error is not null) return Results.BadRequest(new { error });
-            var exam = await repo.CreateExamAsync(
-                input.StudentId, input.Title, input.TakenOn, input.Subjects!, ct);
-            return exam is null
-                ? Results.NotFound(new { error = "Student not found. Create a student first." })
-                : Results.Created($"/api/exams/{exam.Id}", exam);
-        });
-
-        api.MapDelete("/exams/{id:int}", async (int id, StudyRepository repo, CancellationToken ct) =>
-            await repo.DeleteExamAsync(id, ct) ? Results.NoContent() : Results.NotFound());
-
-        api.MapGet("/students/{id:int}/progress", async (int id, StudyRepository repo,
-            CancellationToken ct) =>
-        {
-            var student = await repo.GetStudentAsync(id, ct);
-            if (student is null) return Results.NotFound();
-            var exams = await repo.GetExamsAsync(id, ct);
-            var latest = exams.FirstOrDefault();
-            var best = exams.OrderByDescending(e => e.Percentage).FirstOrDefault();
-            return Results.Ok(new
-            {
-                student,
-                examCount = exams.Count,
-                latestExam = latest,
-                bestExam = best,
-                latestSubjectScores = latest?.Subjects ?? new List<SubjectMark>()
-            });
-        });
-
-        return app;
     }
 
-    private static string? ValidateTask(TaskInput input)
+    private static async Task<string> Token(HttpContext c, SessionStore sessions, SupabaseAuth auth)
     {
-        if (string.IsNullOrWhiteSpace(input.Title) || input.Title.Trim().Length > 200)
-            return "Title must be 1–200 characters.";
-        if (string.IsNullOrWhiteSpace(input.Subject) || input.Subject.Trim().Length > 80)
-            return "Subject must be 1–80 characters.";
-        if (input.Deadline == default) return "Deadline is required.";
-        return null;
-    }
-
-    private static string? ValidateExam(ExamInput input)
-    {
-        if (input.StudentId < 1) return "Valid studentId is required.";
-        if (string.IsNullOrWhiteSpace(input.Title) || input.Title.Trim().Length > 200)
-            return "Exam title must be 1–200 characters.";
-        if (input.TakenOn == default) return "TakenOn is required.";
-        if (input.Subjects is null || input.Subjects.Count is < 1 or > 20)
-            return "Provide 1–20 subjects.";
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in input.Subjects)
-        {
-            if (s is null || string.IsNullOrWhiteSpace(s.Subject) || s.Subject.Trim().Length > 80)
-                return "Every subject must have a name (1–80 characters).";
-            if (!names.Add(s.Subject.Trim())) return "Subject names must be unique per exam.";
-            if (s.MaxScore is < 1 or > 1000 || s.Score < 0 || s.Score > s.MaxScore)
-                return "Score must be 0..maxScore; maxScore must be 1..1000.";
-        }
-        return null;
-    }
-
-    public class TaskInput
-    {
-        public string Title { get; set; } = "";
-        public string Subject { get; set; } = "Informatics";
-        public DateTime Deadline { get; set; }
-    }
-
-    public sealed class TaskEditInput : TaskInput
-    {
-        public bool IsDone { get; set; }
-    }
-
-    public sealed class StudentInput
-    {
-        public string Name { get; set; } = "";
-    }
-
-    public sealed class ExamInput
-    {
-        public int StudentId { get; set; }
-        public string Title { get; set; } = "";
-        public DateTime TakenOn { get; set; }
-        public List<SubjectMark>? Subjects { get; set; }
+        var sid=c.User.FindFirst(SessionStore.Claim)?.Value;
+        return await sessions.AccessToken(sid,auth) ?? throw new UnauthorizedAccessException();
     }
 }
+public sealed record NewTask(string Title,string Subject,DateTime Deadline);
+public sealed record TaskDone(bool IsDone);
+public sealed record NewExam(string Title,DateTime TakenOn,List<SubjectMark>? Subjects);

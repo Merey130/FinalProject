@@ -6,7 +6,4 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>StudyFlow.Supabase.Development</UserSecretsId>
   </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Npgsql" Version="10.0.3" />
-  </ItemGroup>
 </Project>

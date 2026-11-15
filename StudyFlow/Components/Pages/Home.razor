@@ -1,11 +1,17 @@
-﻿
+
 @page "/"
+@attribute [Authorize]
 @using StudyFlow.Models
 @inject StudyFlow.Services.TaskState TaskState
+@inject NavigationManager Navigation
 
 <PageTitle>StudyFlow | Dashboard</PageTitle>
 
 <div class="container-fluid py-4">
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
 
     <div class="p-4 mb-4 text-white rounded-4"
          style="background: linear-gradient(120deg, #071F42, #16477C);">
@@ -87,7 +93,7 @@
             <div class="col-12 col-md-2">
                 <button class="btn w-100 text-white"
                         style="background-color: #16477C;"
-                        @onclick="AddTask">
+                        @onclick="AddTaskAsync">
                     Add Task
                 </button>
             </div>
@@ -114,7 +120,7 @@
                 <input type="checkbox"
                        class="form-check-input"
                        checked="@task.IsDone"
-                       @onchange="() => TaskState.ToggleTask(task.Id)" />
+                       @onchange="() => ToggleTaskAsync(task.Id)" />
 
                 <div class="flex-grow-1">
                     <h5>@task.Title</h5>
@@ -139,7 +145,7 @@
                 }
 
                 <button class="btn btn-outline-danger btn-sm"
-                        @onclick="() => TaskState.DeleteTask(task.Id)">
+                        @onclick="() => DeleteTaskAsync(task.Id)">
                     Delete
                 </button>
 
@@ -153,27 +159,37 @@
     private string newTitle = "";
     private string newSubject = "Informatics";
     private DateTime newDeadline = DateTime.Today.AddDays(2);
+    private string? errorMessage;
 
-    private int CompletedCount =>
-        TaskState.Tasks.Count(t => t.IsDone);
-
-    private int UpcomingCount =>
-        TaskState.Tasks.Count(t =>
-            !t.IsDone &&
-            t.Deadline.Date >= DateTime.Today &&
-            t.Deadline.Date <= DateTime.Today.AddDays(3));
-
-    private int Progress =>
-        TaskState.Tasks.Count == 0
-            ? 0
-            : CompletedCount * 100 / TaskState.Tasks.Count;
-
-    private void AddTask()
+    protected override async Task OnInitializedAsync()
     {
-        if (string.IsNullOrWhiteSpace(newTitle))
-            return;
+        try { await TaskState.LoadAsync(); }
+        catch { errorMessage = "Could not load your tasks. Check your connection and sign-in."; }
+    }
 
-        TaskState.AddTask(newTitle, newSubject, newDeadline);
-        newTitle = "";
+    private int CompletedCount => TaskState.Tasks.Count(t => t.IsDone);
+    private int UpcomingCount => TaskState.Tasks.Count(t =>
+        !t.IsDone && t.Deadline.Date >= DateTime.Today &&
+        t.Deadline.Date <= DateTime.Today.AddDays(3));
+    private int Progress => TaskState.Tasks.Count == 0 ? 0 :
+        CompletedCount * 100 / TaskState.Tasks.Count;
+
+    private async Task AddTaskAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle)) return;
+        try {
+            await TaskState.AddTaskAsync(newTitle, newSubject, newDeadline);
+            newTitle = ""; errorMessage = null;
+        } catch { errorMessage = "Could not save the task."; }
+    }
+    private async Task ToggleTaskAsync(int id)
+    {
+        try { await TaskState.ToggleTaskAsync(id); errorMessage = null; }
+        catch { errorMessage = "Could not update the task."; }
+    }
+    private async Task DeleteTaskAsync(int id)
+    {
+        try { await TaskState.DeleteTaskAsync(id); errorMessage = null; }
+        catch { errorMessage = "Could not delete the task."; }
     }
 }
